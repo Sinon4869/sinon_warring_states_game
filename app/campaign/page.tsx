@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { applyBattleWriteback } from '@/lib/game/campaign-battle';
+import type { BattleWriteback } from '@/lib/game/types';
 
 type GameState = {
   turn: number;
@@ -57,6 +60,19 @@ export default function CampaignPage() {
     if (state.pop <= 0 || state.order <= 0 || state.food <= 0) return '💀 国崩人散';
     return '进行中';
   }, [state]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('sws-battle-report');
+    if (!raw) return;
+    try {
+      const report = JSON.parse(raw) as BattleWriteback;
+      setState((prev) => applyBattleWriteback(prev, report));
+      setResult(`已回写战报：${report.winner}`);
+      localStorage.removeItem('sws-battle-report');
+    } catch {
+      localStorage.removeItem('sws-battle-report');
+    }
+  }, []);
 
   function applyAction(id: string) {
     if (actionsLeft <= 0 || status !== '进行中') return;
@@ -179,7 +195,7 @@ export default function CampaignPage() {
           <p className="text-xs text-zinc-400">回合 {state.turn} · 年份 {state.year} · 状态：{status}</p>
         </div>
         <div className="flex shrink-0 gap-3 text-sm">
-          <Link href="/battle" className="text-cyan-300 hover:underline">实时战斗</Link>
+          <Link href="/battle?from=campaign" className="text-cyan-300 hover:underline">发起战役</Link>
           <Link href="/" className="text-cyan-300 hover:underline">首页</Link>
         </div>
       </header>

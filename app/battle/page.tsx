@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+import type { BattleWriteback } from '@/lib/game/types';
 
 type Side = 'player' | 'ai';
 
@@ -40,6 +43,7 @@ function pick<T>(arr: T[]) {
 }
 
 export default function BattlePage() {
+  const params = useSearchParams();
   const [units, setUnits] = useState<Unit[]>([]);
   const [playerEnergy, setPlayerEnergy] = useState(5);
   const [aiEnergy, setAiEnergy] = useState(5);
@@ -195,6 +199,18 @@ export default function BattlePage() {
     return playerCore > aiCore ? '时间结束：你占优' : playerCore < aiCore ? '时间结束：AI 占优' : '时间结束：平局';
   }, [running, playerCore, aiCore]);
 
+  useEffect(() => {
+    if (running) return;
+    const winner: BattleWriteback['winner'] = aiCore <= 0 ? 'player' : playerCore <= 0 ? 'ai' : playerCore === aiCore ? 'draw' : playerCore > aiCore ? 'player' : 'ai';
+    const report: BattleWriteback = {
+      winner,
+      playerCoreHp: Math.round(playerCore),
+      aiCoreHp: Math.round(aiCore),
+      turnsUsed: 120 - Math.ceil(timeLeft)
+    };
+    localStorage.setItem('sws-battle-report', JSON.stringify(report));
+  }, [running, playerCore, aiCore, timeLeft]);
+
   return (
     <main className="app-shell text-zinc-100">
       <header className="panel flex items-start justify-between gap-3 px-4 py-3">
@@ -202,8 +218,8 @@ export default function BattlePage() {
           <p className="text-xs tracking-[0.2em] text-cyan-300">BATTLE TEST</p>
           <h1 className="text-xl font-semibold">实时对战（皇室战争式）MVP</h1>
         </div>
-        <Link href="/" className="text-sm text-cyan-300 hover:underline">
-          返回首页
+        <Link href={params.get('from') === 'campaign' ? '/campaign' : '/'} className="text-sm text-cyan-300 hover:underline">
+          {params.get('from') === 'campaign' ? '返回战役' : '返回首页'}
         </Link>
       </header>
 
