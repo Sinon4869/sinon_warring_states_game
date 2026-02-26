@@ -124,8 +124,12 @@ jobs:
           binding = "CACHE"
           id = "${{ steps.ensure_cf.outputs.kv_id }}"
 
-          [[r2_buckets]]
+          [assets]
+          directory = ".open-next/assets"
           binding = "ASSETS"
+
+          [[r2_buckets]]
+          binding = "STORAGE"
           bucket_name = "${{ steps.ensure_cf.outputs.r2_name }}"
           EOF
 
