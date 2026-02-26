@@ -40,11 +40,19 @@ jobs:
         id: env_select
         run: |
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            echo "wrangler_env=production" >> $GITHUB_OUTPUT
+            echo "app_env=production" >> $GITHUB_OUTPUT
+            echo "worker_name=sinon-warring-states-game-prod" >> $GITHUB_OUTPUT
+            echo "route=game.sinon.live/*" >> $GITHUB_OUTPUT
+            echo "public_app_url=https://game.sinon.live" >> $GITHUB_OUTPUT
             echo "smoke_url=https://game.sinon.live/api/health" >> $GITHUB_OUTPUT
+            echo "suffix=prod" >> $GITHUB_OUTPUT
           else
-            echo "wrangler_env=dev" >> $GITHUB_OUTPUT
+            echo "app_env=dev" >> $GITHUB_OUTPUT
+            echo "worker_name=sinon-warring-states-game-dev" >> $GITHUB_OUTPUT
+            echo "route=dev-game.sinon.live/*" >> $GITHUB_OUTPUT
+            echo "public_app_url=https://dev-game.sinon.live" >> $GITHUB_OUTPUT
             echo "smoke_url=https://dev-game.sinon.live/api/health" >> $GITHUB_OUTPUT
+            echo "suffix=dev" >> $GITHUB_OUTPUT
           fi
 
       - name: Validate Cloudflare secrets
@@ -52,11 +60,80 @@ jobs:
           test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" || (echo "Missing CLOUDFLARE_API_TOKEN" && exit 1)
           test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" || (echo "Missing CLOUDFLARE_ACCOUNT_ID" && exit 1)
 
+      - name: Ensure Cloudflare resources (auto-create)
+        id: ensure_cf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUFFIX: ${{ steps.env_select.outputs.suffix }}
+        run: |
+          set -euo pipefail
+
+          D1_NAME="sinon-warring-states-game-${SUFFIX}"
+          KV_NAME="sinon-warring-states-game-${SUFFIX}-cache"
+          R2_NAME="sinon-warring-states-game-${SUFFIX}-assets"
+
+          # D1
+          D1_ID=$(pnpm dlx wrangler d1 list --json | jq -r ".[]? | select(.name==\"${D1_NAME}\") | .uuid" | head -n1)
+          if [ -z "${D1_ID}" ]; then
+            echo "Creating D1: ${D1_NAME}"
+            D1_ID=$(pnpm dlx wrangler d1 create "${D1_NAME}" --json | jq -r '.uuid // .id // .database_id // .result.uuid')
+          fi
+
+          # KV
+          KV_ID=$(pnpm dlx wrangler kv namespace list --json | jq -r ".[]? | select(.title==\"${KV_NAME}\") | .id" | head -n1)
+          if [ -z "${KV_ID}" ]; then
+            echo "Creating KV: ${KV_NAME}"
+            KV_ID=$(pnpm dlx wrangler kv namespace create "${KV_NAME}" --json | jq -r '.id // .result.id')
+          fi
+
+          # R2
+          R2_EXISTS=$(pnpm dlx wrangler r2 bucket list --json | jq -r ".[]? | select(.name==\"${R2_NAME}\") | .name" | head -n1)
+          if [ -z "${R2_EXISTS}" ]; then
+            echo "Creating R2: ${R2_NAME}"
+            pnpm dlx wrangler r2 bucket create "${R2_NAME}"
+          fi
+
+          echo "d1_name=${D1_NAME}" >> $GITHUB_OUTPUT
+          echo "d1_id=${D1_ID}" >> $GITHUB_OUTPUT
+          echo "kv_id=${KV_ID}" >> $GITHUB_OUTPUT
+          echo "r2_name=${R2_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Generate wrangler config
+        run: |
+          cat > wrangler.generated.toml <<EOF
+          name = "${{ steps.env_select.outputs.worker_name }}"
+          main = ".open-next/worker.js"
+          compatibility_date = "2026-02-26"
+          compatibility_flags = ["nodejs_compat"]
+          routes = ["${{ steps.env_select.outputs.route }}"]
+
+          [vars]
+          APP_ENV = "${{ steps.env_select.outputs.app_env }}"
+          PUBLIC_APP_URL = "${{ steps.env_select.outputs.public_app_url }}"
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "${{ steps.ensure_cf.outputs.d1_name }}"
+          database_id = "${{ steps.ensure_cf.outputs.d1_id }}"
+
+          [[kv_namespaces]]
+          binding = "CACHE"
+          id = "${{ steps.ensure_cf.outputs.kv_id }}"
+
+          [[r2_buckets]]
+          binding = "ASSETS"
+          bucket_name = "${{ steps.ensure_cf.outputs.r2_name }}"
+          EOF
+
+          echo "Generated wrangler config:"
+          cat wrangler.generated.toml
+
       - name: Build OpenNext Cloudflare worker
         run: pnpm exec opennextjs-cloudflare build
 
       - name: Deploy Worker
-        run: pnpm dlx wrangler deploy --env ${{ steps.env_select.outputs.wrangler_env }}
+        run: pnpm dlx wrangler deploy --config wrangler.generated.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -66,6 +143,8 @@ jobs:
           set +e
           URL="${{ steps.env_select.outputs.smoke_url }}"
           OK=0
+          OUT=""
+
           for i in 1 2 3 4 5; do
             OUT=$(curl -fsS "$URL" 2>&1)
             CODE=$?
@@ -82,8 +161,6 @@ jobs:
             exit 0
           fi
 
-          # Custom domain may still be propagating DNS right after first route deploy.
-          # Do not block deployment on transient DNS resolution in bootstrap phase.
           if echo "$OUT" | grep -qi "Could not resolve host"; then
             echo "Warning: domain DNS not ready yet, skip-failing smoke for now."
             exit 0
