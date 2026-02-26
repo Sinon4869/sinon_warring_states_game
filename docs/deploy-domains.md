@@ -12,12 +12,9 @@
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-## Required Cloudflare Resource IDs
-Update `wrangler.toml` placeholders before first deploy:
-- `REPLACE_WITH_DEV_D1_ID`
-- `REPLACE_WITH_PROD_D1_ID`
-- `REPLACE_WITH_DEV_KV_ID`
-- `REPLACE_WITH_PROD_KV_ID`
+## Data Bindings (optional in current bootstrap)
+Current deploy config does **not** require D1/KV/R2 IDs, so domain deployment can pass first.
+When gameplay/data modules are added, bind D1/KV/R2 incrementally in `wrangler.toml`.
 
 ## Smoke Check Endpoint
 - `/api/health`
