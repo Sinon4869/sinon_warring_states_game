@@ -69,29 +69,32 @@ jobs:
         run: |
           set -euo pipefail
 
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
+          HDR=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json")
+
           D1_NAME="sinon-warring-states-game-${SUFFIX}"
           KV_NAME="sinon-warring-states-game-${SUFFIX}-cache"
           R2_NAME="sinon-warring-states-game-${SUFFIX}-assets"
 
           # D1
-          D1_ID=$(pnpm dlx wrangler d1 list --json | jq -r ".[]? | select(.name==\"${D1_NAME}\") | .uuid" | head -n1)
+          D1_ID=$(curl -fsS "${HDR[@]}" "${API}/d1/database" | jq -r ".result[]? | select(.name==\"${D1_NAME}\") | .uuid" | head -n1)
           if [ -z "${D1_ID}" ]; then
             echo "Creating D1: ${D1_NAME}"
-            D1_ID=$(pnpm dlx wrangler d1 create "${D1_NAME}" --json | jq -r '.uuid // .id // .database_id // .result.uuid')
+            D1_ID=$(curl -fsS -X POST "${HDR[@]}" "${API}/d1/database" --data "{\"name\":\"${D1_NAME}\"}" | jq -r '.result.uuid')
           fi
 
           # KV
-          KV_ID=$(pnpm dlx wrangler kv namespace list --json | jq -r ".[]? | select(.title==\"${KV_NAME}\") | .id" | head -n1)
+          KV_ID=$(curl -fsS "${HDR[@]}" "${API}/storage/kv/namespaces" | jq -r ".result[]? | select(.title==\"${KV_NAME}\") | .id" | head -n1)
           if [ -z "${KV_ID}" ]; then
             echo "Creating KV: ${KV_NAME}"
-            KV_ID=$(pnpm dlx wrangler kv namespace create "${KV_NAME}" --json | jq -r '.id // .result.id')
+            KV_ID=$(curl -fsS -X POST "${HDR[@]}" "${API}/storage/kv/namespaces" --data "{\"title\":\"${KV_NAME}\"}" | jq -r '.result.id')
           fi
 
           # R2
-          R2_EXISTS=$(pnpm dlx wrangler r2 bucket list --json | jq -r ".[]? | select(.name==\"${R2_NAME}\") | .name" | head -n1)
+          R2_EXISTS=$(curl -fsS "${HDR[@]}" "${API}/r2/buckets" | jq -r ".result.buckets[]? | select(.name==\"${R2_NAME}\") | .name" | head -n1)
           if [ -z "${R2_EXISTS}" ]; then
             echo "Creating R2: ${R2_NAME}"
-            pnpm dlx wrangler r2 bucket create "${R2_NAME}"
+            curl -fsS -X POST "${HDR[@]}" "${API}/r2/buckets" --data "{\"name\":\"${R2_NAME}\"}" >/dev/null
           fi
 
           echo "d1_name=${D1_NAME}" >> $GITHUB_OUTPUT
