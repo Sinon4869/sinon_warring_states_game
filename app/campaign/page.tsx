@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import { parseBalanceConfig } from '@/lib/game/balance';
 import { applyBattleWriteback } from '@/lib/game/campaign-battle';
+import { packSave, unpackSave } from '@/lib/game/save';
 import type { BattleWriteback } from '@/lib/game/types';
 
 type GameState = {
@@ -54,6 +56,7 @@ export default function CampaignPage() {
   const [state, setState] = useState<GameState>(INIT);
   const [actionsLeft, setActionsLeft] = useState(3);
   const [result, setResult] = useState('');
+  const [slot, setSlot] = useState<'slot1' | 'slot2' | 'slot3'>('slot1');
 
   const status = useMemo(() => {
     if (state.land >= 10) return '🏆 天下布武达成';
@@ -73,6 +76,11 @@ export default function CampaignPage() {
       localStorage.removeItem('sws-battle-report');
     }
   }, []);
+
+  useEffect(() => {
+    const packed = packSave('auto', state);
+    localStorage.setItem('sws-campaign-save:auto', JSON.stringify(packed));
+  }, [state]);
 
   function applyAction(id: string) {
     if (actionsLeft <= 0 || status !== '进行中') return;
@@ -102,9 +110,10 @@ export default function CampaignPage() {
     setState((prev) => {
       const next = { ...prev };
 
-      // base settlement
-      next.food = clamp(next.food + Math.floor(next.pop * 0.08) - Math.floor(next.army * 0.05));
-      next.gold = clamp(next.gold + Math.floor(next.pop * 0.07) + Math.floor(next.land * 5));
+      // base settlement (configurable balance)
+      const cfg = parseBalanceConfig(localStorage.getItem('sws-balance-config'));
+      next.food = clamp(next.food + Math.floor(next.pop * cfg.econ.popFoodFactor) - Math.floor(next.army * cfg.econ.armyFoodFactor));
+      next.gold = clamp(next.gold + Math.floor(next.pop * cfg.econ.popGoldFactor) + Math.floor(next.land * cfg.econ.landGoldFlat));
 
       // shortages
       if (next.food < 30) {
@@ -160,24 +169,25 @@ export default function CampaignPage() {
   }
 
   function save() {
-    localStorage.setItem('sws-campaign-save', JSON.stringify(state));
-    setResult('已存档');
+    const packed = packSave(slot, state);
+    localStorage.setItem(`sws-campaign-save:${slot}`, JSON.stringify(packed));
+    setResult(`已存档到 ${slot}`);
   }
 
   function load() {
-    const raw = localStorage.getItem('sws-campaign-save');
+    const raw = localStorage.getItem(`sws-campaign-save:${slot}`);
     if (!raw) {
       setResult('无存档');
       return;
     }
-    try {
-      const parsed = JSON.parse(raw) as GameState;
-      setState(parsed);
-      setActionsLeft(3);
-      setResult('已读档');
-    } catch {
-      setResult('存档损坏');
+    const parsed = unpackSave(raw);
+    if (!parsed) {
+      setResult('存档损坏或校验失败');
+      return;
     }
+    setState(parsed as GameState);
+    setActionsLeft(3);
+    setResult(`已读档 ${slot}`);
   }
 
   function reset() {
@@ -232,7 +242,12 @@ export default function CampaignPage() {
             </button>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2 pb-2 md:pb-0">
+        <div className="mt-3 flex flex-wrap items-center gap-2 pb-2 md:pb-0">
+          <select value={slot} onChange={(e) => setSlot(e.target.value as 'slot1' | 'slot2' | 'slot3')} className="chip-btn border-zinc-600 bg-zinc-900/80">
+            <option value="slot1">存档槽 1</option>
+            <option value="slot2">存档槽 2</option>
+            <option value="slot3">存档槽 3</option>
+          </select>
           <button onClick={endTurn} className="chip-btn border-emerald-500/60 hover:bg-emerald-500/20">
             回合结算
           </button>

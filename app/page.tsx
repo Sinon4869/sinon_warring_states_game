@@ -22,7 +22,10 @@ export default function HomePage() {
               <Link href="/battle">实时对战</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues/4" target="_blank" rel="noreferrer">查看路线图</a>
+              <Link href="/balance">数值面板</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues" target="_blank" rel="noreferrer">查看路线图</a>
             </Button>
           </div>
         </section>

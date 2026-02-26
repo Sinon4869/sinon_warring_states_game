@@ -4,19 +4,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { decideAIDeploy, type AIPersona } from '@/lib/game/ai';
+import { DEFAULT_BALANCE, parseBalanceConfig, type UnitBalance } from '@/lib/game/balance';
 import type { BattleWriteback } from '@/lib/game/types';
 
 type Side = 'player' | 'ai';
-
-type UnitTemplate = {
-  id: string;
-  name: string;
-  cost: number;
-  hp: number;
-  atk: number;
-  speed: number;
-  range: number;
-};
 
 type Unit = {
   uid: string;
@@ -31,23 +23,15 @@ type Unit = {
   cooldown: number;
 };
 
-const CARDS: UnitTemplate[] = [
-  { id: 'yari', name: '足轻枪队', cost: 2, hp: 85, atk: 14, speed: 11, range: 4 },
-  { id: 'archer', name: '铁炮队', cost: 3, hp: 70, atk: 18, speed: 8, range: 11 },
-  { id: 'cavalry', name: '骑马突击', cost: 4, hp: 130, atk: 22, speed: 14, range: 5 },
-  { id: 'onyo', name: '军师众', cost: 5, hp: 95, atk: 28, speed: 9, range: 12 }
-];
-
-function pick<T>(arr: T[]) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 export default function BattlePage() {
   const params = useSearchParams();
+  const [cards, setCards] = useState<UnitBalance[]>(DEFAULT_BALANCE.units);
   const [units, setUnits] = useState<Unit[]>([]);
   const [playerEnergy, setPlayerEnergy] = useState(5);
   const [aiEnergy, setAiEnergy] = useState(5);
   const [timeLeft, setTimeLeft] = useState(120);
+  const [aiPersona] = useState<AIPersona>(['aggressive', 'balanced', 'defensive'][Math.floor(Math.random() * 3)] as AIPersona);
+  const [aiLogs, setAiLogs] = useState<string[]>([]);
 
   const [playerTowers, setPlayerTowers] = useState([900, 900, 900]);
   const [aiTowers, setAiTowers] = useState([900, 900, 900]);
@@ -57,7 +41,12 @@ export default function BattlePage() {
   const [running, setRunning] = useState(true);
   const aiThink = useRef(0);
 
-  function createUnit(card: UnitTemplate, owner: Side, lane: number): Unit {
+  useEffect(() => {
+    const cfg = parseBalanceConfig(localStorage.getItem('sws-balance-config'));
+    setCards(cfg.units);
+  }, []);
+
+  function createUnit(card: UnitBalance, owner: Side, lane: number): Unit {
     return {
       uid: `${owner}-${card.id}-${Math.random().toString(36).slice(2, 8)}`,
       owner,
@@ -72,7 +61,7 @@ export default function BattlePage() {
     };
   }
 
-  function deploy(card: UnitTemplate, lane: number) {
+  function deploy(card: UnitBalance, lane: number) {
     if (!running) return;
     setPlayerEnergy((e) => {
       if (e < card.cost) return e;
@@ -98,17 +87,13 @@ export default function BattlePage() {
       if (aiThink.current >= 1.2) {
         aiThink.current = 0;
         setAiEnergy((e) => {
-          const affordable = CARDS.filter((c) => c.cost <= e);
-          if (affordable.length === 0) return e;
-
-          const pressure = [0, 1, 2].map((lane) =>
-            units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp, 0)
-          );
-          const targetLane = pressure.indexOf(Math.max(...pressure));
-          const lane = Math.random() < 0.7 ? targetLane : Math.floor(Math.random() * 3);
-
-          const chosen = pick(affordable);
-          setUnits((prev) => [...prev, createUnit(chosen, 'ai', lane)]);
+          const pressure = [0, 1, 2].map((lane) => units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp, 0));
+          const decision = decideAIDeploy({ energy: e, pressureByLane: pressure, cards, persona: aiPersona });
+          if (!decision) return e;
+          const chosen = cards.find((c) => c.id === decision.cardId);
+          if (!chosen || e < chosen.cost) return e;
+          setUnits((prev) => [...prev, createUnit(chosen, 'ai', decision.lane)]);
+          setAiLogs((prev) => [`AI(${aiPersona})：${decision.reason} -> ${chosen.name} 线${decision.lane + 1}`, ...prev].slice(0, 6));
           return Math.max(0, e - chosen.cost);
         });
       }
@@ -121,17 +106,13 @@ export default function BattlePage() {
         let pCore = playerCore;
         let aCore = aiCore;
 
-        const damage = (target: Unit, value: number) => {
-          target.hp -= value;
-        };
-
         for (const unit of next) {
           const enemies = next.filter((x) => x.owner !== unit.owner && x.lane === unit.lane && x.hp > 0);
           const nearest = enemies.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
 
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
             if (unit.cooldown <= 0) {
-              damage(nearest, unit.atk);
+              nearest.hp -= unit.atk;
               unit.cooldown = 0.8;
             }
             continue;
@@ -160,7 +141,6 @@ export default function BattlePage() {
           unit.x += (unit.owner === 'player' ? 1 : -1) * unit.speed * dt;
         }
 
-        // towers attack back
         const towerShoot = (owner: Side, lane: number, towerHp: number) => {
           if (towerHp <= 0) return;
           const x = owner === 'player' ? 12 : 88;
@@ -189,7 +169,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiTowers, playerTowers, playerCore, aiCore]);
+  }, [running, units, cards, aiPersona, aiTowers, playerTowers, playerCore, aiCore]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -254,22 +234,20 @@ export default function BattlePage() {
           <p>🏯 我方本阵：{Math.round(playerCore)}</p>
           <p>🏯 敌方本阵：{Math.round(aiCore)}</p>
         </div>
+        <div className="mt-2 text-xs text-zinc-400">AI 人格：{aiPersona}</div>
+        <div className="mt-1 space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
         <p className="mb-2 text-sm text-zinc-300">部署（选择兵种 + 线路）</p>
         <div className="grid gap-2 md:grid-cols-4">
-          {CARDS.map((c) => (
+          {cards.map((c) => (
             <div key={c.id} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
               <p className="font-medium">{c.name}</p>
               <p className="text-xs text-zinc-400">费用 {c.cost} · HP {c.hp} · ATK {c.atk}</p>
               <div className="mt-2 flex gap-1">
                 {[0, 1, 2].map((lane) => (
-                  <button
-                    key={`${c.id}-${lane}`}
-                    onClick={() => deploy(c, lane)}
-                    className="chip-btn px-2 py-1 text-xs"
-                  >
+                  <button key={`${c.id}-${lane}`} onClick={() => deploy(c, lane)} className="chip-btn px-2 py-1 text-xs">
                     线{lane + 1}
                   </button>
                 ))}
