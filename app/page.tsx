@@ -14,12 +14,15 @@ export default function HomePage() {
           <p className="text-xs tracking-[0.22em] text-cyan-300/80">SINON WARRING STATES</p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight md:text-5xl">天下布武 · Web 战略模拟</h1>
           <p className="mt-4 max-w-2xl text-sm text-zinc-300 md:text-base">以战国时代为舞台，调控人口、经济、军备与外交，在多势力 AI 对抗中完成统一。</p>
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild size="lg">
-              <Link href="/battle">开始征程</Link>
+              <Link href="/campaign">开始征程</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues/3" target="_blank" rel="noreferrer">查看路线图</a>
+              <Link href="/battle">实时对战</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues/4" target="_blank" rel="noreferrer">查看路线图</a>
             </Button>
           </div>
         </section>
@@ -28,7 +31,7 @@ export default function HomePage() {
           {[
             { icon: Castle, title: '内政循环', desc: '人口/粮食/税收/治安联动结算。' },
             { icon: Swords, title: '战争外交', desc: '盟约、背刺、讨伐与兵力投送。' },
-            { icon: Bot, title: '敌对 AI', desc: '战略层+战役层+回合层的多势力决策。' }
+            { icon: Bot, title: '敌对 AI', desc: '战略层 + 实时对战层联动决策。' }
           ].map((item) => (
             <motion.article
               key={item.title}
