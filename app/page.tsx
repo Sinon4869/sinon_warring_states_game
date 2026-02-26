@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { MotionConfig, motion } from 'framer-motion';
 import { Bot, Castle, Swords } from 'lucide-react';
 
@@ -14,8 +15,12 @@ export default function HomePage() {
           <h1 className="mt-3 text-3xl font-semibold leading-tight md:text-5xl">天下布武 · Web 战略模拟</h1>
           <p className="mt-4 max-w-2xl text-sm text-zinc-300 md:text-base">以战国时代为舞台，调控人口、经济、军备与外交，在多势力 AI 对抗中完成统一。</p>
           <div className="mt-6 flex gap-3">
-            <Button size="lg">开始征程</Button>
-            <Button variant="outline" size="lg">查看路线图</Button>
+            <Button asChild size="lg">
+              <Link href="/battle">开始征程</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues/3" target="_blank" rel="noreferrer">查看路线图</a>
+            </Button>
           </div>
         </section>
 
