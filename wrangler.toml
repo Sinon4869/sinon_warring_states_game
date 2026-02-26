@@ -1,0 +1,11 @@
+name = "sinon-warring-states-game"
+main = ".open-next/worker.js"
+compatibility_date = "2026-02-26"
+
+[env.dev]
+name = "sinon-warring-states-game-dev"
+routes = ["dev-game.sinon.live/*"]
+
+[env.production]
+name = "sinon-warring-states-game-prod"
+routes = ["game.sinon.live/*"]

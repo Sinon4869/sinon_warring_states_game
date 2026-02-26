@@ -4,6 +4,6 @@ out
 dist
 .env
 .env.*
-pnpm-lock.yaml
+# keep pnpm-lock.yaml committed
 .DS_Store
 *.log
