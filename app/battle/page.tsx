@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { decideAIDeploy, type AIPersona } from '@/lib/game/ai';
 import { DEFAULT_BALANCE, parseBalanceConfig, type UnitBalance } from '@/lib/game/balance';
+import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
 
 type Side = 'player' | 'ai';
@@ -66,6 +67,7 @@ export default function BattlePage() {
     setPlayerEnergy((e) => {
       if (e < card.cost) return e;
       setUnits((prev) => [...prev, createUnit(card, 'player', lane)]);
+      track({ name: 'battle_deploy', at: Date.now(), props: { card: card.id, lane } });
       return Math.max(0, e - card.cost);
     });
   }
@@ -189,6 +191,7 @@ export default function BattlePage() {
       turnsUsed: 120 - Math.ceil(timeLeft)
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
+    track({ name: 'battle_result', at: Date.now(), props: { winner, turnsUsed: report.turnsUsed } });
   }, [running, playerCore, aiCore, timeLeft]);
 
   return (
@@ -253,6 +256,21 @@ export default function BattlePage() {
                 ))}
               </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="fixed inset-x-0 bottom-0 z-20 border-t border-cyan-500/30 bg-zinc-950/90 px-3 py-2 backdrop-blur md:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
+        <p className="mb-1 text-[11px] text-zinc-400">移动端快速出兵（单手）</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((lane) => (
+            <button
+              key={`quick-${lane}`}
+              onClick={() => cards[0] && deploy(cards[0], lane)}
+              className="chip-btn border-cyan-400/60 text-xs"
+            >
+              线{lane + 1} 快投
+            </button>
           ))}
         </div>
       </section>

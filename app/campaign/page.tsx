@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { parseBalanceConfig } from '@/lib/game/balance';
 import { applyBattleWriteback } from '@/lib/game/campaign-battle';
 import { packSave, unpackSave } from '@/lib/game/save';
+import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
 
 type GameState = {
@@ -64,6 +65,13 @@ export default function CampaignPage() {
     return '进行中';
   }, [state]);
 
+  const advice = useMemo(() => {
+    if (state.food < 40) return '建议：优先农业开发，避免人口与治安崩盘。';
+    if (state.order < 50) return '建议：先安抚治安，再考虑扩张。';
+    if (state.army < 70) return '建议：补充军力后再发起战役。';
+    return '当前节奏稳定，可尝试发起战役扩大领地。';
+  }, [state.food, state.order, state.army]);
+
   useEffect(() => {
     const raw = localStorage.getItem('sws-battle-report');
     if (!raw) return;
@@ -102,6 +110,7 @@ export default function CampaignPage() {
     });
 
     setActionsLeft((x) => x - 1);
+    track({ name: 'campaign_action', at: Date.now(), props: { action: id } });
   }
 
   function endTurn() {
@@ -166,6 +175,7 @@ export default function CampaignPage() {
     });
 
     setActionsLeft(3);
+    track({ name: 'campaign_end_turn', at: Date.now(), props: { turn: state.turn } });
   }
 
   function save() {
@@ -259,7 +269,8 @@ export default function CampaignPage() {
       </section>
 
       <section className="panel p-4">
-        <h2 className="mb-2 text-base font-semibold">回合日志</h2>
+        <h2 className="mb-1 text-base font-semibold">回合日志</h2>
+        <p className="mb-2 text-xs text-cyan-300">复盘建议：{advice}</p>
         <div className="space-y-1 text-sm text-zinc-300">
           {state.logs.map((l, i) => (
             <p key={`${l}-${i}`}>- {l}</p>

@@ -25,7 +25,13 @@ export default function HomePage() {
               <Link href="/balance">数值面板</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <a href="https://github.com/Sinon4869/sinon_warring_states_game/issues" target="_blank" rel="noreferrer">查看路线图</a>
+              <Link href="/tutorial">新手章节</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/multiplayer">同步实验</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/ops">运营面板</Link>
             </Button>
           </div>
         </section>
