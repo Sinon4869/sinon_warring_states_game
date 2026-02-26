@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { decideAIDeploy, type AIPersona } from '@/lib/game/ai';
@@ -25,7 +24,7 @@ type Unit = {
 };
 
 export default function BattlePage() {
-  const params = useSearchParams();
+  const [fromCampaign, setFromCampaign] = useState(false);
   const [cards, setCards] = useState<UnitBalance[]>(DEFAULT_BALANCE.units);
   const [units, setUnits] = useState<Unit[]>([]);
   const [playerEnergy, setPlayerEnergy] = useState(5);
@@ -45,6 +44,9 @@ export default function BattlePage() {
   useEffect(() => {
     const cfg = parseBalanceConfig(localStorage.getItem('sws-balance-config'));
     setCards(cfg.units);
+    if (typeof window !== 'undefined') {
+      setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
+    }
   }, []);
 
   function createUnit(card: UnitBalance, owner: Side, lane: number): Unit {
@@ -201,8 +203,8 @@ export default function BattlePage() {
           <p className="text-xs tracking-[0.2em] text-cyan-300">BATTLE TEST</p>
           <h1 className="text-xl font-semibold">实时对战（皇室战争式）MVP</h1>
         </div>
-        <Link href={params.get('from') === 'campaign' ? '/campaign' : '/'} className="text-sm text-cyan-300 hover:underline">
-          {params.get('from') === 'campaign' ? '返回战役' : '返回首页'}
+        <Link href={fromCampaign ? '/campaign' : '/'} className="text-sm text-cyan-300 hover:underline">
+          {fromCampaign ? '返回战役' : '返回首页'}
         </Link>
       </header>
 
