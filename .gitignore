@@ -7,3 +7,4 @@ dist
 # keep pnpm-lock.yaml committed
 .DS_Store
 *.log
+tsconfig.tsbuildinfo

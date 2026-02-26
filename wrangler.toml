@@ -1,11 +1,63 @@
 name = "sinon-warring-states-game"
 main = ".open-next/worker.js"
 compatibility_date = "2026-02-26"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_ENV = "base"
+PUBLIC_APP_URL = "https://game.sinon.live"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sinon-warring-states-game"
+database_id = "REPLACE_WITH_D1_ID"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_KV_ID"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "sinon-warring-states-game-assets"
 
 [env.dev]
 name = "sinon-warring-states-game-dev"
 routes = ["dev-game.sinon.live/*"]
 
+[env.dev.vars]
+APP_ENV = "dev"
+PUBLIC_APP_URL = "https://dev-game.sinon.live"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "sinon-warring-states-game-dev"
+database_id = "REPLACE_WITH_DEV_D1_ID"
+
+[[env.dev.kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_DEV_KV_ID"
+
+[[env.dev.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "sinon-warring-states-game-dev-assets"
+
 [env.production]
 name = "sinon-warring-states-game-prod"
 routes = ["game.sinon.live/*"]
+
+[env.production.vars]
+APP_ENV = "production"
+PUBLIC_APP_URL = "https://game.sinon.live"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "sinon-warring-states-game-prod"
+database_id = "REPLACE_WITH_PROD_D1_ID"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_PROD_KV_ID"
+
+[[env.production.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "sinon-warring-states-game-prod-assets"
