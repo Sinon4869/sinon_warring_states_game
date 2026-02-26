@@ -53,7 +53,7 @@ jobs:
           test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" || (echo "Missing CLOUDFLARE_ACCOUNT_ID" && exit 1)
 
       - name: Build OpenNext Cloudflare worker
-        run: pnpm dlx @opennextjs/cloudflare build
+        run: pnpm exec opennextjs-cloudflare build
 
       - name: Deploy Worker
         run: pnpm dlx wrangler deploy --env ${{ steps.env_select.outputs.wrangler_env }}

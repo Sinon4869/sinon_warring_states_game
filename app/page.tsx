@@ -1,3 +1,5 @@
+'use client';
+
 import { MotionConfig, motion } from 'framer-motion';
 import { Bot, Castle, Swords } from 'lucide-react';
 
