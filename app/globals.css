@@ -8,4 +8,23 @@
 
 body {
   @apply bg-background text-foreground antialiased;
+  background-image: radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.12), transparent 35%), radial-gradient(circle at 90% 0%, rgba(59, 130, 246, 0.09), transparent 30%);
+}
+
+@layer components {
+  .app-shell {
+    @apply mx-auto min-h-screen w-full max-w-6xl space-y-4 p-4 md:space-y-5 md:p-8;
+  }
+
+  .panel {
+    @apply rounded-xl border border-cyan-400/25 bg-zinc-900/70 backdrop-blur;
+  }
+
+  .panel-title {
+    @apply text-lg font-semibold md:text-xl;
+  }
+
+  .chip-btn {
+    @apply rounded border border-cyan-500/50 px-3 py-2 text-sm hover:bg-cyan-500/20 active:scale-[0.98] disabled:opacity-40;
+  }
 }

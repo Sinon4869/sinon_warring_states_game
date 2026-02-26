@@ -171,15 +171,15 @@ export default function CampaignPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl space-y-4 p-4 text-zinc-100 md:p-8">
-      <header className="flex items-center justify-between rounded-xl border border-cyan-400/30 bg-zinc-900/70 px-4 py-3">
+    <main className="app-shell text-zinc-100">
+      <header className="panel flex items-start justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-xs tracking-[0.2em] text-cyan-300">CAMPAIGN MVP</p>
           <h1 className="text-xl font-semibold">天下布武 · 回合治理</h1>
           <p className="text-xs text-zinc-400">回合 {state.turn} · 年份 {state.year} · 状态：{status}</p>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link href="/battle" className="text-cyan-300 hover:underline">去实时战斗</Link>
+        <div className="flex shrink-0 gap-3 text-sm">
+          <Link href="/battle" className="text-cyan-300 hover:underline">实时战斗</Link>
           <Link href="/" className="text-cyan-300 hover:underline">首页</Link>
         </div>
       </header>
@@ -195,14 +195,14 @@ export default function CampaignPage() {
           ['领地', `${state.land} / 10`],
           ['敌方领地', state.enemyLand]
         ].map(([k, v]) => (
-          <article key={String(k)} className="rounded-lg border border-zinc-700 bg-zinc-900/60 p-3">
+          <article key={String(k)} className="rounded-lg border border-zinc-700/80 bg-zinc-900/60 p-3">
             <p className="text-xs text-zinc-400">{k}</p>
             <p className="mt-1 text-xl font-semibold">{v}</p>
           </article>
         ))}
       </section>
 
-      <section className="rounded-xl border border-cyan-400/20 bg-zinc-900/60 p-4">
+      <section className="panel p-4">
         <p className="mb-2 text-sm">行动点：{actionsLeft}/3</p>
         <div className="grid gap-2 md:grid-cols-5">
           {ACTIONS.map((a) => (
@@ -210,24 +210,24 @@ export default function CampaignPage() {
               key={a.id}
               disabled={actionsLeft <= 0 || status !== '进行中'}
               onClick={() => applyAction(a.id)}
-              className="rounded border border-cyan-500/50 px-3 py-2 text-sm hover:bg-cyan-500/20 disabled:opacity-40"
+              className="chip-btn"
             >
               {a.label}
             </button>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={endTurn} className="rounded border border-emerald-500/60 px-3 py-2 text-sm hover:bg-emerald-500/20">
+        <div className="mt-3 flex flex-wrap gap-2 pb-2 md:pb-0">
+          <button onClick={endTurn} className="chip-btn border-emerald-500/60 hover:bg-emerald-500/20">
             回合结算
           </button>
-          <button onClick={save} className="rounded border border-zinc-500 px-3 py-2 text-sm hover:bg-zinc-700/30">存档</button>
-          <button onClick={load} className="rounded border border-zinc-500 px-3 py-2 text-sm hover:bg-zinc-700/30">读档</button>
-          <button onClick={reset} className="rounded border border-rose-500/60 px-3 py-2 text-sm hover:bg-rose-500/20">重开</button>
+          <button onClick={save} className="chip-btn border-zinc-500 hover:bg-zinc-700/30">存档</button>
+          <button onClick={load} className="chip-btn border-zinc-500 hover:bg-zinc-700/30">读档</button>
+          <button onClick={reset} className="chip-btn border-rose-500/60 hover:bg-rose-500/20">重开</button>
           {result && <p className="self-center text-xs text-cyan-300">{result}</p>}
         </div>
       </section>
 
-      <section className="rounded-xl border border-cyan-400/20 bg-zinc-900/60 p-4">
+      <section className="panel p-4">
         <h2 className="mb-2 text-base font-semibold">回合日志</h2>
         <div className="space-y-1 text-sm text-zinc-300">
           {state.logs.map((l, i) => (

@@ -196,8 +196,8 @@ export default function BattlePage() {
   }, [running, playerCore, aiCore]);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl space-y-4 p-4 text-zinc-100 md:p-8">
-      <header className="flex items-center justify-between rounded-xl border border-cyan-400/30 bg-zinc-900/70 px-4 py-3">
+    <main className="app-shell text-zinc-100">
+      <header className="panel flex items-start justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-xs tracking-[0.2em] text-cyan-300">BATTLE TEST</p>
           <h1 className="text-xl font-semibold">实时对战（皇室战争式）MVP</h1>
@@ -207,7 +207,7 @@ export default function BattlePage() {
         </Link>
       </header>
 
-      <section className="rounded-xl border border-cyan-400/20 bg-zinc-900/60 p-4">
+      <section className="panel p-4">
         <div className="mb-3 grid gap-2 text-sm md:grid-cols-4">
           <p>⏱ 剩余：{Math.ceil(timeLeft)}s</p>
           <p>⚡ 我方能量：{playerEnergy.toFixed(1)}</p>
@@ -240,7 +240,7 @@ export default function BattlePage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-cyan-400/20 bg-zinc-900/60 p-4">
+      <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
         <p className="mb-2 text-sm text-zinc-300">部署（选择兵种 + 线路）</p>
         <div className="grid gap-2 md:grid-cols-4">
           {CARDS.map((c) => (
@@ -252,7 +252,7 @@ export default function BattlePage() {
                   <button
                     key={`${c.id}-${lane}`}
                     onClick={() => deploy(c, lane)}
-                    className="rounded border border-cyan-500/50 px-2 py-1 text-xs hover:bg-cyan-500/20"
+                    className="chip-btn px-2 py-1 text-xs"
                   >
                     线{lane + 1}
                   </button>
