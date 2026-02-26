@@ -135,8 +135,8 @@ jobs:
       - name: Build OpenNext Cloudflare worker
         run: pnpm exec opennextjs-cloudflare build
 
-      - name: Deploy Worker
-        run: pnpm dlx wrangler deploy --config wrangler.generated.toml
+      - name: Deploy OpenNext bundle
+        run: pnpm exec opennextjs-cloudflare deploy --config wrangler.generated.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
