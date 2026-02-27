@@ -42,11 +42,18 @@ type VersionCompareResp = {
   risk: 'low' | 'medium' | 'high';
 };
 
+type RetentionResp = {
+  total: number;
+  policy: { hotLimit: number; keepDays: number; sample: Record<string, number> };
+};
+
 export default function ReviewPage() {
   const [data, setData] = useState<SummaryResp | null>(null);
   const [aiAudit, setAiAudit] = useState<AiAuditResp | null>(null);
   const [pveDiff, setPveDiff] = useState<PveDiffResp | null>(null);
   const [versionCompare, setVersionCompare] = useState<VersionCompareResp | null>(null);
+  const [retention, setRetention] = useState<RetentionResp | null>(null);
+  const [retentionMsg, setRetentionMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/review/summary')
@@ -68,7 +75,20 @@ export default function ReviewPage() {
       .then((r) => r.json())
       .then((d) => setVersionCompare(d))
       .catch(() => setVersionCompare(null));
+
+    fetch('/api/review/retention')
+      .then((r) => r.json())
+      .then((d) => setRetention(d))
+      .catch(() => setRetention(null));
   }, []);
+
+  async function runCleanup() {
+    const res = await fetch('/api/review/retention', { method: 'POST' });
+    const data = await res.json();
+    setRetentionMsg(`清理完成：${data.before} -> ${data.after}（移除 ${data.removed}）`);
+    const latest = await fetch('/api/review/retention').then((r) => r.json()).catch(() => null);
+    setRetention(latest);
+  }
 
   return (
     <main className="app-shell text-zinc-100">
@@ -150,6 +170,29 @@ export default function ReviewPage() {
                 <p className={versionCompare.risk === 'low' ? 'text-emerald-300' : versionCompare.risk === 'medium' ? 'text-amber-300' : 'text-rose-300'}>
                   回归风险：{versionCompare.risk}
                 </p>
+              </div>
+            )}
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-2 text-base font-semibold">Review 导出</h2>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <a href="/api/review/export?format=json" className="chip-btn" target="_blank">导出 JSON</a>
+              <a href="/api/review/export?format=markdown" className="chip-btn" target="_blank">导出 Markdown</a>
+            </div>
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-2 text-base font-semibold">数据保留与清理策略</h2>
+            {!retention ? (
+              <p className="text-sm text-zinc-400">暂无策略数据</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>当前事件数：{retention.total}</p>
+                <p>热数据上限：{retention.policy.hotLimit} · 保留天数：{retention.policy.keepDays}</p>
+                <p className="text-xs text-zinc-400">采样：{Object.entries(retention.policy.sample).map(([k, v]) => `${k}/每${v}条保留1条`).join('；')}</p>
+                <button onClick={runCleanup} className="chip-btn">执行清理</button>
+                {retentionMsg && <p className="text-xs text-cyan-300">{retentionMsg}</p>}
               </div>
             )}
           </section>
