@@ -156,6 +156,13 @@ export default function BattlePage() {
   const aiThink = useRef(0);
   const playerThink = useRef(0);
   const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const tickLastAtRef = useRef<number | null>(null);
+  const tickMsSumRef = useRef(0);
+  const tickCountRef = useRef(0);
+  const lagSpikesRef = useRef(0);
+  const fxPeakRef = useRef(0);
+  const deployStatsRef = useRef<Record<string, number>>({ infantry: 0, spear: 0, cavalry: 0, archer: 0 });
+  const lanePressureRef = useRef<[number, number, number]>([0, 0, 0]);
   const startedRef = useRef(false);
   const timeLimitRef = useRef(BASE_TIME_LIMIT);
 
@@ -278,7 +285,11 @@ export default function BattlePage() {
 
   const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color']) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setEffects((prev) => [...prev, { id, lane, x, text, color }].slice(-40));
+    setEffects((prev) => {
+      const next = [...prev, { id, lane, x, text, color }].slice(-40);
+      fxPeakRef.current = Math.max(fxPeakRef.current, next.length);
+      return next;
+    });
     setTimeout(() => {
       setEffects((prev) => prev.filter((f) => f.id !== id));
     }, 650);
@@ -312,6 +323,9 @@ export default function BattlePage() {
     const nextUnits = [...unitsRef.current, makeUnit(troop, owner, lane)];
     unitsRef.current = nextUnits;
     setUnits(nextUnits);
+    if (owner === 'player') {
+      deployStatsRef.current[troop.id] = (deployStatsRef.current[troop.id] ?? 0) + 1;
+    }
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
     track({
       name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy',
@@ -371,6 +385,15 @@ export default function BattlePage() {
     if (!running) return;
     const baseDt = 0.1;
     const timer = setInterval(() => {
+      const now = Date.now();
+      if (tickLastAtRef.current !== null) {
+        const tickMs = now - tickLastAtRef.current;
+        tickMsSumRef.current += tickMs;
+        tickCountRef.current += 1;
+        if (tickMs > 170) lagSpikesRef.current += 1;
+      }
+      tickLastAtRef.current = now;
+
       const dt = baseDt * battleSpeedRef.current;
       setTimeLeft((t) => {
         const nt = Math.max(0, t - dt);
@@ -461,6 +484,7 @@ export default function BattlePage() {
             if (unit.cooldown <= 0) {
               const towerDamage = Math.round(unit.atk * sideRate);
               targetTower[unit.lane] -= towerDamage;
+              if (unit.owner === 'player') lanePressureRef.current[unit.lane] += towerDamage;
               spawnFx(unit.lane, towerX, `塔-${towerDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
               track({
                 name: 'battle_tower_hit',
@@ -478,6 +502,7 @@ export default function BattlePage() {
               const coreDamage = Math.round(unit.atk * sideRate);
               if (unit.owner === 'player') {
                 aCore -= coreDamage;
+                lanePressureRef.current[unit.lane] += coreDamage * 1.2;
                 setCoreFlash('ai');
               } else {
                 pCore -= coreDamage;
@@ -556,6 +581,10 @@ export default function BattlePage() {
     const aiScore = Number((aiCore + aiTowerSum * 0.6).toFixed(1));
     const outcome = computeOutcome(playerCore, aiCore, playerTowers, aiTowers);
 
+    const mvpTroop = Object.entries(deployStatsRef.current).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'infantry';
+    const keyLane = lanePressureRef.current.indexOf(Math.max(...lanePressureRef.current));
+    const nextHint = outcome.winner === 'player' ? 'expand' : outcome.winner === 'ai' ? 'fortify' : 'rest';
+
     setSettlement({ winner: outcome.winner, reason: outcome.reason, playerScore, aiScore });
 
     const report: BattleWriteback = {
@@ -565,7 +594,14 @@ export default function BattlePage() {
       turnsUsed: Math.max(0, timeLimitRef.current - Math.ceil(timeLeft))
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
-    localStorage.setItem('sws-battle-settlement', JSON.stringify({ ...report, reason: outcome.reason, playerScore, aiScore }));
+    localStorage.setItem('sws-battle-settlement', JSON.stringify({ ...report, reason: outcome.reason, playerScore, aiScore, mvpTroop, keyLane, nextHint }));
+    const avgTickMs = tickCountRef.current > 0 ? Math.round(tickMsSumRef.current / tickCountRef.current) : 100;
+    track({
+      name: 'battle_perf_summary',
+      at: Date.now(),
+      props: { matchId: matchIdRef.current, avgTickMs, lagSpikes: lagSpikesRef.current, fxPeak: fxPeakRef.current }
+    });
+
     track({
       name: 'battle_result',
       at: Date.now(),
@@ -685,6 +721,7 @@ export default function BattlePage() {
             <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">敌方积分：{settlement.aiScore}</p>
           </div>
           <p className="mt-2 text-xs text-zinc-400">优先级：本阵击破 {'>'} 积分判定 {'>'} 平局阈值</p>
+          <Link href="/battle/result" className="mt-2 inline-block text-sm text-cyan-300 hover:underline">查看完整战后结算页</Link>
         </section>
       )}
 

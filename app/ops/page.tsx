@@ -21,9 +21,18 @@ type Playability = {
   reasons: string[];
 };
 
+type Perf = {
+  sample: number;
+  avgTickMs: number;
+  avgLagSpikes: number;
+  avgFxPeak: number;
+  quality: 'stable' | 'medium' | 'poor';
+};
+
 export default function OpsPage() {
   const [data, setData] = useState<Summary | null>(null);
   const [playability, setPlayability] = useState<Playability | null>(null);
+  const [perf, setPerf] = useState<Perf | null>(null);
 
   useEffect(() => {
     fetch('/api/telemetry')
@@ -35,6 +44,11 @@ export default function OpsPage() {
       .then((r) => r.json())
       .then((d) => setPlayability(d.report ?? null))
       .catch(() => setPlayability(null));
+
+    fetch('/api/review/perf')
+      .then((r) => r.json())
+      .then((d) => setPerf(d))
+      .catch(() => setPerf(null));
   }, []);
 
   return (
@@ -84,6 +98,21 @@ export default function OpsPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+      </section>
+
+      <section className="panel p-4">
+        <h2 className="text-base font-semibold">战斗性能概览</h2>
+        {!perf ? (
+          <p className="mt-2 text-sm text-zinc-400">暂无性能数据</p>
+        ) : (
+          <div className="mt-2 space-y-1 text-sm">
+            <p>样本：{perf.sample}</p>
+            <p>平均 tick：{perf.avgTickMs}ms</p>
+            <p>平均卡顿峰值：{perf.avgLagSpikes}</p>
+            <p>平均特效峰值：{perf.avgFxPeak}</p>
+            <p className={perf.quality === 'stable' ? 'text-emerald-300' : perf.quality === 'medium' ? 'text-amber-300' : 'text-rose-300'}>质量评级：{perf.quality}</p>
           </div>
         )}
       </section>
