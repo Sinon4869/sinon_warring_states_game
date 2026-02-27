@@ -134,6 +134,36 @@ export default function BattlePage() {
     track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
   }, [running, units, playerTroopCd, aiTroopCd, spawnFx, laneOrders]);
 
+  const chooseAiAction = useCallback(() => {
+    const laneStats = [0, 1, 2].map((lane) => {
+      const playerPower = units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk * 1.2, 0);
+      const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk, 0);
+      const danger = playerPower - aiPower;
+      const towerRisk = (900 - aiTowers[lane]) * 0.6;
+      const opportunity = (900 - playerTowers[lane]) * 0.5;
+      return { lane, playerPower, aiPower, danger, towerRisk, opportunity };
+    });
+
+    const available = TROOPS.filter((t) => (aiTroopCd[t.id] ?? 0) <= 0);
+    if (available.length === 0) return null;
+
+    if (aiPersona === 'defensive') {
+      const lane = laneStats.sort((a, b) => b.danger + b.towerRisk - (a.danger + a.towerRisk))[0].lane;
+      const troop = available.sort((a, b) => b.hp - a.hp)[0];
+      return { lane, troop, reason: '防守补线' };
+    }
+
+    if (aiPersona === 'aggressive') {
+      const lane = laneStats.sort((a, b) => b.opportunity - b.danger * 0.25 - (a.opportunity - a.danger * 0.25))[0].lane;
+      const troop = available.sort((a, b) => b.atk + b.speed - (a.atk + a.speed))[0];
+      return { lane, troop, reason: '强攻破塔' };
+    }
+
+    const lane = laneStats.sort((a, b) => Math.abs(b.danger - b.opportunity) - Math.abs(a.danger - a.opportunity))[0].lane;
+    const troop = available.sort((a, b) => b.atk + b.hp * 0.35 - (a.atk + a.hp * 0.35))[0];
+    return { lane, troop, reason: '均衡换线' };
+  }, [units, aiTowers, playerTowers, aiTroopCd, aiPersona]);
+
   useEffect(() => {
     if (!coreFlash) return;
     const t = setTimeout(() => setCoreFlash(null), 180);
@@ -164,16 +194,10 @@ export default function BattlePage() {
       aiThink.current += dt;
       if (aiThink.current >= 1.2) {
         aiThink.current = 0;
-        const pressure = [0, 1, 2].map((lane) => units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp, 0));
-        const laneMax = pressure.indexOf(Math.max(...pressure));
-        const laneMin = pressure.indexOf(Math.min(...pressure));
-        const lane = aiPersona === 'aggressive' ? laneMin : aiPersona === 'defensive' ? laneMax : Math.random() < 0.6 ? laneMax : laneMin;
-        const candidate = TROOPS
-          .filter((t) => (aiTroopCd[t.id] ?? 0) <= 0)
-          .sort((a, b) => (aiPersona === 'aggressive' ? b.atk - a.atk : aiPersona === 'defensive' ? b.hp - a.hp : b.atk + b.hp * 0.2 - (a.atk + a.hp * 0.2)))[0];
-        if (candidate) {
-          deploy('ai', candidate, lane);
-          setAiLogs((prev) => [`AI(${aiPersona})：投放 ${candidate.name} 到 ${lane + 1} 路`, ...prev].slice(0, 6));
+        const action = chooseAiAction();
+        if (action) {
+          deploy('ai', action.troop, action.lane);
+          setAiLogs((prev) => [`AI(${aiPersona})：${action.reason}，${action.troop.name} -> ${action.lane + 1}路`, ...prev].slice(0, 6));
         }
       }
 
@@ -263,7 +287,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction]);
 
   const result = useMemo(() => {
     if (running) return '';
