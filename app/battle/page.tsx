@@ -1,19 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { decideAIDeploy, type AIPersona } from '@/lib/game/ai';
-import { DEFAULT_BALANCE, parseBalanceConfig, type UnitBalance } from '@/lib/game/balance';
 import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
 
 type Side = 'player' | 'ai';
 
+type Troop = {
+  id: string;
+  name: string;
+  hp: number;
+  atk: number;
+  speed: number;
+  range: number;
+  cdMs: number;
+};
+
 type Unit = {
   uid: string;
   owner: Side;
-  cardId: string;
+  troopId: string;
   lane: number;
   x: number;
   hp: number;
@@ -23,14 +31,37 @@ type Unit = {
   cooldown: number;
 };
 
+const TROOPS: Troop[] = [
+  { id: 'infantry', name: '步兵', hp: 120, atk: 16, speed: 10, range: 4, cdMs: 2200 },
+  { id: 'spear', name: '枪兵', hp: 95, atk: 19, speed: 11, range: 5, cdMs: 2600 },
+  { id: 'cavalry', name: '骑兵', hp: 150, atk: 22, speed: 14, range: 5, cdMs: 3600 },
+  { id: 'archer', name: '弓兵', hp: 75, atk: 18, speed: 8, range: 12, cdMs: 3000 }
+];
+
+function makeUnit(troop: Troop, owner: Side, lane: number): Unit {
+  return {
+    uid: `${owner}-${troop.id}-${Math.random().toString(36).slice(2, 8)}`,
+    owner,
+    troopId: troop.id,
+    lane,
+    x: owner === 'player' ? 18 : 82,
+    hp: troop.hp,
+    atk: troop.atk,
+    speed: troop.speed,
+    range: troop.range,
+    cooldown: 0
+  };
+}
+
 export default function BattlePage() {
   const [fromCampaign, setFromCampaign] = useState(false);
-  const [cards, setCards] = useState<UnitBalance[]>(DEFAULT_BALANCE.units);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [playerEnergy, setPlayerEnergy] = useState(5);
-  const [aiEnergy, setAiEnergy] = useState(5);
   const [timeLeft, setTimeLeft] = useState(120);
-  const [aiPersona] = useState<AIPersona>(['aggressive', 'balanced', 'defensive'][Math.floor(Math.random() * 3)] as AIPersona);
+  const [running, setRunning] = useState(true);
+  const [aiPersona] = useState<'aggressive' | 'balanced' | 'defensive'>(() => {
+    const personas: Array<'aggressive' | 'balanced' | 'defensive'> = ['aggressive', 'balanced', 'defensive'];
+    return personas[Math.floor(Math.random() * personas.length)];
+  });
   const [aiLogs, setAiLogs] = useState<string[]>([]);
 
   const [playerTowers, setPlayerTowers] = useState([900, 900, 900]);
@@ -38,41 +69,31 @@ export default function BattlePage() {
   const [playerCore, setPlayerCore] = useState(1800);
   const [aiCore, setAiCore] = useState(1800);
 
-  const [running, setRunning] = useState(true);
+  const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
+  const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
+
   const aiThink = useRef(0);
 
   useEffect(() => {
-    const cfg = parseBalanceConfig(localStorage.getItem('sws-balance-config'));
-    setCards(cfg.units);
     if (typeof window !== 'undefined') {
       setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
     }
   }, []);
 
-  function createUnit(card: UnitBalance, owner: Side, lane: number): Unit {
-    return {
-      uid: `${owner}-${card.id}-${Math.random().toString(36).slice(2, 8)}`,
-      owner,
-      cardId: card.id,
-      lane,
-      x: owner === 'player' ? 18 : 82,
-      hp: card.hp,
-      atk: card.atk,
-      speed: card.speed,
-      range: card.range,
-      cooldown: 0
-    };
-  }
-
-  function deploy(card: UnitBalance, lane: number) {
+  const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
     if (!running) return;
-    setPlayerEnergy((e) => {
-      if (e < card.cost) return e;
-      setUnits((prev) => [...prev, createUnit(card, 'player', lane)]);
-      track({ name: 'battle_deploy', at: Date.now(), props: { card: card.id, lane } });
-      return Math.max(0, e - card.cost);
-    });
-  }
+    if (owner === 'player') {
+      const left = playerTroopCd[troop.id] ?? 0;
+      if (left > 0) return;
+      setPlayerTroopCd((s) => ({ ...s, [troop.id]: troop.cdMs }));
+    } else {
+      const left = aiTroopCd[troop.id] ?? 0;
+      if (left > 0) return;
+      setAiTroopCd((s) => ({ ...s, [troop.id]: troop.cdMs }));
+    }
+    setUnits((prev) => [...prev, makeUnit(troop, owner, lane)]);
+    track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
+  }, [running, playerTroopCd, aiTroopCd]);
 
   useEffect(() => {
     if (!running) return;
@@ -84,27 +105,35 @@ export default function BattlePage() {
         return nt;
       });
 
-      setPlayerEnergy((e) => Math.min(10, e + 0.08));
-      setAiEnergy((e) => Math.min(10, e + 0.08));
+      setPlayerTroopCd((prev) => {
+        const next: Record<string, number> = {};
+        for (const t of TROOPS) next[t.id] = Math.max(0, (prev[t.id] ?? 0) - dt * 1000);
+        return next;
+      });
+      setAiTroopCd((prev) => {
+        const next: Record<string, number> = {};
+        for (const t of TROOPS) next[t.id] = Math.max(0, (prev[t.id] ?? 0) - dt * 1000);
+        return next;
+      });
 
       aiThink.current += dt;
       if (aiThink.current >= 1.2) {
         aiThink.current = 0;
-        setAiEnergy((e) => {
-          const pressure = [0, 1, 2].map((lane) => units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp, 0));
-          const decision = decideAIDeploy({ energy: e, pressureByLane: pressure, cards, persona: aiPersona });
-          if (!decision) return e;
-          const chosen = cards.find((c) => c.id === decision.cardId);
-          if (!chosen || e < chosen.cost) return e;
-          setUnits((prev) => [...prev, createUnit(chosen, 'ai', decision.lane)]);
-          setAiLogs((prev) => [`AI(${aiPersona})：${decision.reason} -> ${chosen.name} 线${decision.lane + 1}`, ...prev].slice(0, 6));
-          return Math.max(0, e - chosen.cost);
-        });
+        const pressure = [0, 1, 2].map((lane) => units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp, 0));
+        const laneMax = pressure.indexOf(Math.max(...pressure));
+        const laneMin = pressure.indexOf(Math.min(...pressure));
+        const lane = aiPersona === 'aggressive' ? laneMin : aiPersona === 'defensive' ? laneMax : Math.random() < 0.6 ? laneMax : laneMin;
+        const candidate = TROOPS
+          .filter((t) => (aiTroopCd[t.id] ?? 0) <= 0)
+          .sort((a, b) => (aiPersona === 'aggressive' ? b.atk - a.atk : aiPersona === 'defensive' ? b.hp - a.hp : b.atk + b.hp * 0.2 - (a.atk + a.hp * 0.2)))[0];
+        if (candidate) {
+          deploy('ai', candidate, lane);
+          setAiLogs((prev) => [`AI(${aiPersona})：投放 ${candidate.name} 到 ${lane + 1} 路`, ...prev].slice(0, 6));
+        }
       }
 
       setUnits((prevUnits) => {
         const next = prevUnits.map((u) => ({ ...u, cooldown: Math.max(0, u.cooldown - dt) }));
-
         const pT = [...playerTowers];
         const aT = [...aiTowers];
         let pCore = playerCore;
@@ -173,7 +202,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, cards, aiPersona, aiTowers, playerTowers, playerCore, aiCore]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -200,8 +229,8 @@ export default function BattlePage() {
     <main className="app-shell text-zinc-100">
       <header className="panel flex items-start justify-between gap-3 px-4 py-3">
         <div>
-          <p className="text-xs tracking-[0.2em] text-cyan-300">BATTLE TEST</p>
-          <h1 className="text-xl font-semibold">实时对战（皇室战争式）MVP</h1>
+          <p className="text-xs tracking-[0.2em] text-cyan-300">TACTICAL BATTLE</p>
+          <h1 className="text-xl font-semibold">无卡纯对战模式</h1>
         </div>
         <Link href={fromCampaign ? '/campaign' : '/'} className="text-sm text-cyan-300 hover:underline">
           {fromCampaign ? '返回战役' : '返回首页'}
@@ -211,8 +240,8 @@ export default function BattlePage() {
       <section className="panel p-4">
         <div className="mb-3 grid gap-2 text-sm md:grid-cols-4">
           <p>⏱ 剩余：{Math.ceil(timeLeft)}s</p>
-          <p>⚡ 我方能量：{playerEnergy.toFixed(1)}</p>
-          <p>🤖 敌方能量：{aiEnergy.toFixed(1)}</p>
+          <p>🛡 我方本阵：{Math.round(playerCore)}</p>
+          <p>🏴 敌方本阵：{Math.round(aiCore)}</p>
           <p className="font-semibold text-cyan-300">{result || '战斗进行中...'}</p>
         </div>
 
@@ -228,47 +257,52 @@ export default function BattlePage() {
                     key={u.uid}
                     className={`absolute top-7 h-3 w-3 rounded-full ${u.owner === 'player' ? 'bg-cyan-400' : 'bg-rose-400'}`}
                     style={{ left: `calc(${u.x}% - 6px)` }}
-                    title={`${u.owner === 'player' ? '我' : '敌'}-${u.cardId}:${Math.round(u.hp)}`}
+                    title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)}`}
                   />
                 ))}
             </div>
           ))}
         </div>
-
-        <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-          <p>🏯 我方本阵：{Math.round(playerCore)}</p>
-          <p>🏯 敌方本阵：{Math.round(aiCore)}</p>
-        </div>
-        <div className="mt-2 text-xs text-zinc-400">AI 人格：{aiPersona}</div>
+        <p className="mt-2 text-xs text-zinc-400">AI 人格：{aiPersona}</p>
         <div className="mt-1 space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
-        <p className="mb-2 text-sm text-zinc-300">部署（选择兵种 + 线路）</p>
+        <p className="mb-2 text-sm text-zinc-300">兵种调度（无卡）</p>
         <div className="grid gap-2 md:grid-cols-4">
-          {cards.map((c) => (
-            <div key={c.id} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-              <p className="font-medium">{c.name}</p>
-              <p className="text-xs text-zinc-400">费用 {c.cost} · HP {c.hp} · ATK {c.atk}</p>
-              <div className="mt-2 flex gap-1">
-                {[0, 1, 2].map((lane) => (
-                  <button key={`${c.id}-${lane}`} onClick={() => deploy(c, lane)} className="chip-btn px-2 py-1 text-xs">
-                    线{lane + 1}
-                  </button>
-                ))}
+          {TROOPS.map((t) => {
+            const cd = playerTroopCd[t.id] ?? 0;
+            const disabled = cd > 0 || !running;
+            return (
+              <div key={t.id} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                <p className="font-medium">{t.name}</p>
+                <p className="text-xs text-zinc-400">CD {Math.ceil(t.cdMs / 1000)}s · HP {t.hp} · ATK {t.atk}</p>
+                <p className="mt-1 text-[11px] text-cyan-300">{cd > 0 ? `冷却中 ${Math.ceil(cd / 1000)}s` : '可用'}</p>
+                <div className="mt-2 flex gap-1">
+                  {[0, 1, 2].map((lane) => (
+                    <button
+                      key={`${t.id}-${lane}`}
+                      onClick={() => deploy('player', t, lane)}
+                      disabled={disabled}
+                      className="chip-btn px-2 py-1 text-xs"
+                    >
+                      线{lane + 1}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       <section className="fixed inset-x-0 bottom-0 z-20 border-t border-cyan-500/30 bg-zinc-950/90 px-3 py-2 backdrop-blur md:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
-        <p className="mb-1 text-[11px] text-zinc-400">移动端快速出兵（单手）</p>
+        <p className="mb-1 text-[11px] text-zinc-400">移动端快速调度（步兵）</p>
         <div className="grid grid-cols-3 gap-2">
           {[0, 1, 2].map((lane) => (
             <button
               key={`quick-${lane}`}
-              onClick={() => cards[0] && deploy(cards[0], lane)}
+              onClick={() => deploy('player', TROOPS[0], lane)}
               className="chip-btn border-cyan-400/60 text-xs"
             >
               线{lane + 1} 快投
