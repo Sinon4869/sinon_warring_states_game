@@ -81,6 +81,8 @@ export default function BattlePage() {
   const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
   const [effects, setEffects] = useState<CombatFx[]>([]);
+  const [shake, setShake] = useState(0);
+  const [coreFlash, setCoreFlash] = useState<Side | null>(null);
 
   const aiThink = useRef(0);
 
@@ -89,6 +91,12 @@ export default function BattlePage() {
       setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
     }
   }, []);
+
+  useEffect(() => {
+    if (shake <= 0) return;
+    const t = setTimeout(() => setShake((v) => Math.max(0, v - 1)), 16);
+    return () => clearTimeout(t);
+  }, [shake]);
 
   const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color']) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -113,6 +121,12 @@ export default function BattlePage() {
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
     track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
   }, [running, playerTroopCd, aiTroopCd, spawnFx]);
+
+  useEffect(() => {
+    if (!coreFlash) return;
+    const t = setTimeout(() => setCoreFlash(null), 180);
+    return () => clearTimeout(t);
+  }, [coreFlash]);
 
   useEffect(() => {
     if (!running) return;
@@ -185,8 +199,14 @@ export default function BattlePage() {
           const coreX = unit.owner === 'player' ? 96 : 4;
           if (Math.abs(unit.x - coreX) <= unit.range) {
             if (unit.cooldown <= 0) {
-              if (unit.owner === 'player') aCore -= unit.atk;
-              else pCore -= unit.atk;
+              if (unit.owner === 'player') {
+                aCore -= unit.atk;
+                setCoreFlash('ai');
+              } else {
+                pCore -= unit.atk;
+                setCoreFlash('player');
+              }
+              setShake(10);
               spawnFx(unit.lane, coreX, `本阵-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
@@ -251,7 +271,10 @@ export default function BattlePage() {
   }, [running, playerCore, aiCore, timeLeft]);
 
   return (
-    <main className="app-shell text-zinc-100">
+    <main
+      className="app-shell text-zinc-100"
+      style={{ transform: shake > 0 ? `translate(${shake % 2 === 0 ? -2 : 2}px, 0px)` : 'translate(0,0)', transition: 'transform 30ms linear' }}
+    >
       <header className="panel flex items-start justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-xs tracking-[0.2em] text-cyan-300">TACTICAL BATTLE</p>
@@ -265,8 +288,8 @@ export default function BattlePage() {
       <section className="panel space-y-3 p-4">
         <div className="grid gap-2 text-sm md:grid-cols-4">
           <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">⏱ 剩余：{Math.ceil(timeLeft)}s</div>
-          <div className="rounded-md border border-zinc-700 bg-zinc-900/70 px-3 py-2">🛡 我方本阵：{Math.round(playerCore)}</div>
-          <div className="rounded-md border border-zinc-700 bg-zinc-900/70 px-3 py-2">🏴 敌方本阵：{Math.round(aiCore)}</div>
+          <div className={`rounded-md border px-3 py-2 ${coreFlash === 'player' ? 'border-rose-400 bg-rose-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🛡 我方本阵：{Math.round(playerCore)}</div>
+          <div className={`rounded-md border px-3 py-2 ${coreFlash === 'ai' ? 'border-cyan-400 bg-cyan-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🏴 敌方本阵：{Math.round(aiCore)}</div>
           <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
         </div>
 
