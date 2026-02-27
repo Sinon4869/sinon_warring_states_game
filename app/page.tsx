@@ -22,6 +22,9 @@ export default function HomePage() {
               <Link href="/battle">实时对战</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
+              <Link href="/map">世界地图</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
               <Link href="/balance">数值面板</Link>
             </Button>
             <Button asChild variant="outline" size="lg">

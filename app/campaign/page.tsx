@@ -216,6 +216,7 @@ export default function CampaignPage() {
         </div>
         <div className="flex shrink-0 gap-3 text-sm">
           <Link href="/battle?from=campaign" className="text-cyan-300 hover:underline">发起战役</Link>
+          <Link href="/map" className="text-cyan-300 hover:underline">世界地图</Link>
           <Link href="/" className="text-cyan-300 hover:underline">首页</Link>
         </div>
       </header>

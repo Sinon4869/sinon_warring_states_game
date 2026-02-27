@@ -1,0 +1,70 @@
+import type { CampaignState } from '@/lib/game/types';
+
+export type RegionOwner = 'player' | 'enemy' | 'neutral';
+
+export type Region = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  terrain: 'plain' | 'mountain' | 'river';
+  tag?: 'capital' | 'fort' | 'granary';
+};
+
+export type Edge = { from: string; to: string };
+
+export const REGIONS: Region[] = [
+  { id: 'r1', name: '并州', x: 90, y: 90, terrain: 'mountain', tag: 'fort' },
+  { id: 'r2', name: '冀州', x: 180, y: 80, terrain: 'plain' },
+  { id: 'r3', name: '幽州', x: 270, y: 70, terrain: 'plain', tag: 'fort' },
+  { id: 'r4', name: '青州', x: 350, y: 110, terrain: 'river' },
+  { id: 'r5', name: '兖州', x: 250, y: 145, terrain: 'plain' },
+  { id: 'r6', name: '豫州', x: 220, y: 210, terrain: 'plain', tag: 'granary' },
+  { id: 'r7', name: '司隶', x: 150, y: 200, terrain: 'mountain', tag: 'capital' },
+  { id: 'r8', name: '雍州', x: 70, y: 220, terrain: 'mountain', tag: 'fort' },
+  { id: 'r9', name: '凉州', x: 35, y: 160, terrain: 'mountain' },
+  { id: 'r10', name: '徐州', x: 340, y: 180, terrain: 'river' },
+  { id: 'r11', name: '扬州', x: 360, y: 260, terrain: 'river', tag: 'granary' },
+  { id: 'r12', name: '荆州', x: 250, y: 285, terrain: 'plain' },
+  { id: 'r13', name: '益州', x: 120, y: 300, terrain: 'mountain', tag: 'fort' },
+  { id: 'r14', name: '交州', x: 220, y: 380, terrain: 'river' },
+  { id: 'r15', name: '桂州', x: 160, y: 360, terrain: 'plain' },
+  { id: 'r16', name: '襄阳', x: 210, y: 255, terrain: 'plain' },
+  { id: 'r17', name: '宛城', x: 180, y: 245, terrain: 'plain', tag: 'fort' },
+  { id: 'r18', name: '寿春', x: 305, y: 225, terrain: 'river' },
+  { id: 'r19', name: '建业', x: 335, y: 305, terrain: 'river', tag: 'capital' },
+  { id: 'r20', name: '成都', x: 95, y: 335, terrain: 'mountain', tag: 'capital' }
+];
+
+export const EDGES: Edge[] = [
+  { from: 'r1', to: 'r2' }, { from: 'r2', to: 'r3' }, { from: 'r3', to: 'r4' },
+  { from: 'r2', to: 'r5' }, { from: 'r5', to: 'r6' }, { from: 'r6', to: 'r7' },
+  { from: 'r7', to: 'r8' }, { from: 'r8', to: 'r9' }, { from: 'r5', to: 'r10' },
+  { from: 'r10', to: 'r11' }, { from: 'r11', to: 'r19' }, { from: 'r6', to: 'r16' },
+  { from: 'r16', to: 'r17' }, { from: 'r16', to: 'r12' }, { from: 'r12', to: 'r15' },
+  { from: 'r15', to: 'r14' }, { from: 'r13', to: 'r15' }, { from: 'r13', to: 'r20' },
+  { from: 'r6', to: 'r18' }, { from: 'r18', to: 'r19' }, { from: 'r12', to: 'r11' },
+  { from: 'r8', to: 'r13' }
+];
+
+const ORDER = REGIONS.map((r) => r.id);
+
+export function resolveOwnership(campaign?: Pick<CampaignState, 'land' | 'enemyLand'>) {
+  const playerCount = Math.max(1, Math.min(10, campaign?.land ?? 1));
+  const enemyCount = Math.max(0, Math.min(10, campaign?.enemyLand ?? 9));
+  const owners: Record<string, RegionOwner> = {};
+  ORDER.forEach((id) => {
+    owners[id] = 'neutral';
+  });
+  ORDER.slice(0, playerCount).forEach((id) => {
+    owners[id] = 'player';
+  });
+  ORDER.slice(ORDER.length - enemyCount).forEach((id) => {
+    owners[id] = owners[id] === 'player' ? 'player' : 'enemy';
+  });
+  return owners;
+}
+
+export function frontierEdges(owners: Record<string, RegionOwner>) {
+  return EDGES.filter((e) => owners[e.from] !== owners[e.to]);
+}
