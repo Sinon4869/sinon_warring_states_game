@@ -244,6 +244,19 @@ export default function BattlePage() {
         const action = chooseAiAction();
         if (action) {
           deploy('ai', action.troop, action.lane);
+          track({
+            name: 'battle_ai_decision',
+            at: Date.now(),
+            props: {
+              matchId: matchIdRef.current,
+              persona: aiPersona,
+              reason: action.reason,
+              lane: action.lane,
+              troop: action.troop.id,
+              mode: battleMode,
+              stage: stageName
+            }
+          });
           setAiLogs((prev) => [`AI(${aiPersona})：${action.reason}，${action.troop.name} -> ${action.lane + 1}路`, ...prev].slice(0, 6));
         }
       }
@@ -347,7 +360,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction, atkRate]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction, atkRate, battleMode, stageName]);
 
   const result = useMemo(() => {
     if (running) return '';

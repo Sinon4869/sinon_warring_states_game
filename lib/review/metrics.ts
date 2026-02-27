@@ -105,3 +105,58 @@ export function buildMatchHeatmap(events: EventItem[], matchId: string) {
       .map(([second, row]) => ({ second, lane0: row[0], lane1: row[1], lane2: row[2] }))
   };
 }
+
+export function buildAiDecisionAudit(events: EventItem[]) {
+  const decisions = events.filter((e) => e.name === 'battle_ai_decision');
+  const byPersona: Record<string, { total: number; reasons: Record<string, number> }> = {};
+
+  for (const d of decisions) {
+    const persona = String(d.props?.persona ?? 'unknown');
+    const reason = String(d.props?.reason ?? 'unknown');
+    if (!byPersona[persona]) byPersona[persona] = { total: 0, reasons: {} };
+    byPersona[persona].total += 1;
+    byPersona[persona].reasons[reason] = (byPersona[persona].reasons[reason] ?? 0) + 1;
+  }
+
+  return {
+    total: decisions.length,
+    byPersona,
+    latest: decisions.slice(-30).reverse().map((d) => ({
+      at: d.at,
+      matchId: String(d.props?.matchId ?? ''),
+      persona: String(d.props?.persona ?? ''),
+      reason: String(d.props?.reason ?? ''),
+      lane: toNum(d.props?.lane, -1),
+      troop: String(d.props?.troop ?? '')
+    }))
+  };
+}
+
+export function buildPveDifficultyReview(events: EventItem[]) {
+  const results = events.filter((e) => e.name === 'battle_result' && e.props?.mode === 'pve');
+  const byStage = new Map<string, { total: number; wins: number; avgTurns: number; failReasons: Record<string, number> }>();
+
+  for (const r of results) {
+    const stage = String(r.props?.stage ?? 'unknown');
+    const winner = String(r.props?.winner ?? 'draw');
+    const turns = toNum(r.props?.turnsUsed, 0);
+    const row = byStage.get(stage) ?? { total: 0, wins: 0, avgTurns: 0, failReasons: {} };
+    row.total += 1;
+    if (winner === 'player') row.wins += 1;
+    row.avgTurns += turns;
+    if (winner !== 'player') {
+      const reason = winner === 'ai' ? '被AI击败' : '平局超时';
+      row.failReasons[reason] = (row.failReasons[reason] ?? 0) + 1;
+    }
+    byStage.set(stage, row);
+  }
+
+  const stages = [...byStage.entries()].map(([stage, v]) => {
+    const clearRate = v.total ? v.wins / v.total : 0;
+    const avgTurns = v.total ? Math.round(v.avgTurns / v.total) : 0;
+    const difficultyFlag = clearRate < 0.28 ? '过难' : clearRate > 0.78 ? '过易' : '正常';
+    return { stage, total: v.total, clearRate, avgTurns, failReasons: v.failReasons, difficultyFlag };
+  });
+
+  return { totalPveMatches: results.length, stages };
+}
