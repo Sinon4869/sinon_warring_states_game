@@ -13,6 +13,20 @@ export type Region = {
 
 export type Edge = { from: string; to: string };
 
+export type MapActionType = 'march' | 'attack' | 'resupply';
+
+export type MapBattleContext = {
+  id: string;
+  region: string;
+  terrain: 'plain' | 'mountain' | 'river';
+  enemyPower: number;
+  supply: number;
+  objective: string;
+  recommended: 'expand' | 'fortify' | 'rest';
+  mapAction: MapActionType;
+  regionId: string;
+};
+
 export const REGIONS: Region[] = [
   { id: 'r1', name: '并州', x: 90, y: 90, terrain: 'mountain', tag: 'fort' },
   { id: 'r2', name: '冀州', x: 180, y: 80, terrain: 'plain' },
@@ -67,4 +81,51 @@ export function resolveOwnership(campaign?: Pick<CampaignState, 'land' | 'enemyL
 
 export function frontierEdges(owners: Record<string, RegionOwner>) {
   return EDGES.filter((e) => owners[e.from] !== owners[e.to]);
+}
+
+export function regionNeighbors(regionId: string) {
+  return EDGES.flatMap((e) => {
+    if (e.from === regionId) return [e.to];
+    if (e.to === regionId) return [e.from];
+    return [] as string[];
+  });
+}
+
+export function hasSupplyLine(regionId: string, owners: Record<string, RegionOwner>) {
+  if (owners[regionId] !== 'player') return false;
+  const capitals = REGIONS.filter((r) => r.tag === 'capital').map((r) => r.id);
+  const visited = new Set<string>();
+  const q: string[] = [regionId];
+
+  while (q.length > 0) {
+    const cur = q.shift()!;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    if (capitals.includes(cur) && owners[cur] === 'player') return true;
+    for (const n of regionNeighbors(cur)) {
+      if (!visited.has(n) && owners[n] === 'player') q.push(n);
+    }
+  }
+  return false;
+}
+
+export function createBattleContextFromMap(region: Region, action: MapActionType, supplyOk: boolean): MapBattleContext {
+  const baseEnemy = action === 'attack' ? 120 : action === 'march' ? 95 : 85;
+  const terrainBuff = region.terrain === 'mountain' ? 18 : region.terrain === 'river' ? 12 : 0;
+  const enemyPower = baseEnemy + terrainBuff + (region.tag === 'fort' ? 20 : 0);
+  const supply = supplyOk ? 78 : 42;
+  const objective = action === 'attack' ? `夺取${region.name}` : action === 'march' ? `推进至${region.name}` : `稳住${region.name}补给线`;
+  const recommended = action === 'attack' ? 'expand' : action === 'march' ? 'fortify' : 'rest';
+
+  return {
+    id: `map-${Date.now()}-${region.id}`,
+    region: region.name,
+    terrain: region.terrain,
+    enemyPower,
+    supply,
+    objective,
+    recommended,
+    mapAction: action,
+    regionId: region.id
+  };
 }

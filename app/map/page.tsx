@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
-import { EDGES, REGIONS, frontierEdges, resolveOwnership, type Region } from '@/lib/game/map';
+import { EDGES, REGIONS, createBattleContextFromMap, frontierEdges, hasSupplyLine, resolveOwnership, type Region } from '@/lib/game/map';
 import { unpackSave } from '@/lib/game/save';
 
 function ownerClass(owner: 'player' | 'enemy' | 'neutral') {
@@ -13,7 +14,9 @@ function ownerClass(owner: 'player' | 'enemy' | 'neutral') {
 }
 
 export default function MapPage() {
+  const router = useRouter();
   const [selected, setSelected] = useState<Region | null>(null);
+  const [actionMsg, setActionMsg] = useState('');
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -27,6 +30,31 @@ export default function MapPage() {
   }, []);
 
   const front = useMemo(() => frontierEdges(owners), [owners]);
+
+  function runMapAction(action: 'march' | 'attack' | 'resupply') {
+    if (!selected) return;
+    const owner = owners[selected.id];
+    if (owner !== 'player') {
+      setActionMsg('仅可对我方控制区域下达行动。');
+      return;
+    }
+
+    const supplyOk = hasSupplyLine(selected.id, owners);
+    const ctx = createBattleContextFromMap(selected, action, supplyOk);
+    localStorage.setItem('sws-battle-context', JSON.stringify(ctx));
+
+    const raw = localStorage.getItem('sws-map-actions');
+    const logs = raw ? (JSON.parse(raw) as Array<{ at: number; action: string; region: string; supplyOk: boolean }>) : [];
+    logs.unshift({ at: Date.now(), action, region: selected.name, supplyOk });
+    localStorage.setItem('sws-map-actions', JSON.stringify(logs.slice(0, 80)));
+
+    if (action === 'resupply') {
+      setActionMsg(`已执行补给整备：${selected.name}（补给${supplyOk ? '畅通' : '受阻'}）`);
+      return;
+    }
+
+    router.push('/battle?from=campaign&context=1');
+  }
 
   return (
     <main className="app-shell text-zinc-100">
@@ -97,7 +125,7 @@ export default function MapPage() {
         {!selected ? (
           <p className="text-sm text-zinc-400">点击地图节点查看详情（驻军/治安/资源/威胁）。</p>
         ) : (
-          <div className="space-y-1 text-sm">
+          <div className="space-y-2 text-sm">
             <p className="font-semibold text-cyan-300">{selected.name} · {selected.id.toUpperCase()}</p>
             <p>占领：{owners[selected.id] === 'player' ? '我方' : owners[selected.id] === 'enemy' ? '敌方' : '中立'}</p>
             <p>地形：{selected.terrain === 'plain' ? '平原' : selected.terrain === 'mountain' ? '山地' : '水域'}</p>
@@ -106,6 +134,14 @@ export default function MapPage() {
             <p>治安：{owners[selected.id] === 'player' ? 76 : owners[selected.id] === 'enemy' ? 58 : 63}</p>
             <p>资源：{selected.tag === 'granary' ? '粮草高产' : selected.tag === 'capital' ? '税收中枢' : '常规产出'}</p>
             <p>威胁：{owners[selected.id] === 'enemy' ? '高' : owners[selected.id] === 'neutral' ? '中' : '低'}</p>
+            <p>补给线：{owners[selected.id] === 'player' ? (hasSupplyLine(selected.id, owners) ? '畅通' : '受阻') : 'N/A'}</p>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button className="chip-btn" onClick={() => runMapAction('march')}>行军推进</button>
+              <button className="chip-btn border-rose-500/60" onClick={() => runMapAction('attack')}>发起进攻</button>
+              <button className="chip-btn border-emerald-500/60" onClick={() => runMapAction('resupply')}>整备补给</button>
+            </div>
+            {actionMsg && <p className="text-xs text-cyan-300">{actionMsg}</p>}
           </div>
         )}
       </section>

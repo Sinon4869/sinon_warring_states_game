@@ -54,6 +54,8 @@ type BattleContext = {
   supply: number;
   objective: string;
   recommended: 'expand' | 'fortify' | 'rest';
+  mapAction?: 'march' | 'attack' | 'resupply';
+  regionId?: string;
 };
 
 const BASE_TOWER_HP = 680;
@@ -174,7 +176,16 @@ export default function BattlePage() {
           stageNameRef.current = `${ctx.region} · ${ctx.objective}`;
           const terrainRate = ctx.terrain === 'mountain' ? { player: 0.95, ai: 1.08 } : ctx.terrain === 'river' ? { player: 1.02, ai: 1.05 } : { player: 1, ai: 1 };
           const supplyRate = ctx.supply >= 70 ? 1.08 : ctx.supply <= 45 ? 0.92 : 1;
-          setAtkRate({ player: Number((terrainRate.player * supplyRate).toFixed(2)), ai: terrainRate.ai });
+          const mapAction = ctx.mapAction ?? 'attack';
+          const actionTime = mapAction === 'attack' ? 125 : mapAction === 'march' ? 115 : 105;
+          const aiCoreBoost = Math.max(0, Math.round((ctx.enemyPower - 100) * 3.2));
+          const playerCoreAdjust = mapAction === 'resupply' ? 80 : 0;
+
+          setTimeLeft(actionTime);
+          timeLimitRef.current = actionTime;
+          setPlayerCore(BASE_CORE_HP + playerCoreAdjust);
+          setAiCore(BASE_CORE_HP + aiCoreBoost);
+          setAtkRate({ player: Number((terrainRate.player * supplyRate).toFixed(2)), ai: terrainRate.ai + aiCoreBoost / 1300 });
         } catch {
           setBlockedByFlow(true);
         }
