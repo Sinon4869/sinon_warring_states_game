@@ -95,6 +95,7 @@ export default function BattlePage() {
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
 
   const aiThink = useRef(0);
+  const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -112,6 +113,15 @@ export default function BattlePage() {
       setAiCore(stage.aiCore);
       setAtkRate({ player: stage.playerAtkRate, ai: stage.aiAtkRate });
     }
+  }, []);
+
+  useEffect(() => {
+    track({
+      name: 'battle_start',
+      at: Date.now(),
+      props: { matchId: matchIdRef.current, mode: battleMode }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -164,7 +174,11 @@ export default function BattlePage() {
     }
     setUnits((prev) => [...prev, makeUnit(troop, owner, lane)]);
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
-    track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
+    track({
+      name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy',
+      at: Date.now(),
+      props: { matchId: matchIdRef.current, troop: troop.id, lane }
+    });
   }, [running, units, playerTroopCd, aiTroopCd, spawnFx, laneOrders]);
 
   const chooseAiAction = useCallback(() => {
@@ -266,6 +280,11 @@ export default function BattlePage() {
               const towerDamage = Math.round(unit.atk * sideRate);
               targetTower[unit.lane] -= towerDamage;
               spawnFx(unit.lane, towerX, `塔-${towerDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              track({
+                name: 'battle_tower_hit',
+                at: Date.now(),
+                props: { matchId: matchIdRef.current, lane: unit.lane, by: unit.owner, damage: towerDamage }
+              });
               unit.cooldown = 0.8;
             }
             continue;
@@ -284,6 +303,11 @@ export default function BattlePage() {
               }
               setShake(10);
               spawnFx(unit.lane, coreX, `本阵-${coreDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              track({
+                name: 'battle_core_hit',
+                at: Date.now(),
+                props: { matchId: matchIdRef.current, lane: unit.lane, by: unit.owner, damage: coreDamage }
+              });
               unit.cooldown = 0.8;
             }
             continue;
@@ -343,8 +367,12 @@ export default function BattlePage() {
       turnsUsed: 120 - Math.ceil(timeLeft)
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
-    track({ name: 'battle_result', at: Date.now(), props: { winner, turnsUsed: report.turnsUsed } });
-  }, [running, playerCore, aiCore, timeLeft]);
+    track({
+      name: 'battle_result',
+      at: Date.now(),
+      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName }
+    });
+  }, [running, playerCore, aiCore, timeLeft, battleMode, stageName]);
 
   return (
     <main

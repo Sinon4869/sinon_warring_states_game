@@ -36,6 +36,9 @@ export default function HomePage() {
             <Button asChild variant="outline" size="lg">
               <Link href="/ops">运营面板</Link>
             </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/review">复盘中心</Link>
+            </Button>
           </div>
         </section>
 
