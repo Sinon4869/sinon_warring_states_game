@@ -9,6 +9,8 @@ import type { BattleWriteback } from '@/lib/game/types';
 import { detectAssetTier, loadManifest, preloadAssets, selectAssets } from '@/lib/assets/pipeline';
 import { getPveStage } from '@/lib/game/pve';
 
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev';
+
 type Side = 'player' | 'ai';
 
 type Troop = {
@@ -119,7 +121,7 @@ export default function BattlePage() {
     track({
       name: 'battle_start',
       at: Date.now(),
-      props: { matchId: matchIdRef.current, mode: battleMode }
+      props: { matchId: matchIdRef.current, mode: battleMode, version: APP_VERSION }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -383,7 +385,7 @@ export default function BattlePage() {
     track({
       name: 'battle_result',
       at: Date.now(),
-      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName }
+      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION }
     });
   }, [running, playerCore, aiCore, timeLeft, battleMode, stageName]);
 

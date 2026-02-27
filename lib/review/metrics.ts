@@ -160,3 +160,33 @@ export function buildPveDifficultyReview(events: EventItem[]) {
 
   return { totalPveMatches: results.length, stages };
 }
+
+export function buildVersionCompare(events: EventItem[], left?: string, right?: string) {
+  const results = events.filter((e) => e.name === 'battle_result');
+  const versions = [...new Set(results.map((r) => String(r.props?.version ?? 'dev')))].slice(-12);
+
+  const calc = (version: string) => {
+    const rows = results.filter((r) => String(r.props?.version ?? 'dev') === version);
+    const n = rows.length || 1;
+    const playerWinRate = rows.filter((r) => String(r.props?.winner) === 'player').length / n;
+    const avgTurns = Math.round(rows.reduce((a, b) => a + toNum(b.props?.turnsUsed, 0), 0) / n);
+    const drawRate = rows.filter((r) => String(r.props?.winner) === 'draw').length / n;
+    return { version, matches: rows.length, playerWinRate, avgTurns, drawRate };
+  };
+
+  const lv = left && versions.includes(left) ? left : versions[versions.length - 2] ?? versions[0] ?? 'dev';
+  const rv = right && versions.includes(right) ? right : versions[versions.length - 1] ?? 'dev';
+  const l = calc(lv);
+  const r = calc(rv);
+
+  const delta = {
+    matches: r.matches - l.matches,
+    playerWinRate: Number((r.playerWinRate - l.playerWinRate).toFixed(4)),
+    avgTurns: r.avgTurns - l.avgTurns,
+    drawRate: Number((r.drawRate - l.drawRate).toFixed(4))
+  };
+
+  const risk = Math.abs(delta.playerWinRate) > 0.2 || Math.abs(delta.avgTurns) > 18 ? 'high' : Math.abs(delta.playerWinRate) > 0.1 ? 'medium' : 'low';
+
+  return { versions, left: l, right: r, delta, risk };
+}

@@ -34,10 +34,19 @@ type PveDiffResp = {
   stages: Array<{ stage: string; total: number; clearRate: number; avgTurns: number; difficultyFlag: string }>;
 };
 
+type VersionCompareResp = {
+  versions: string[];
+  left: { version: string; matches: number; playerWinRate: number; avgTurns: number; drawRate: number };
+  right: { version: string; matches: number; playerWinRate: number; avgTurns: number; drawRate: number };
+  delta: { matches: number; playerWinRate: number; avgTurns: number; drawRate: number };
+  risk: 'low' | 'medium' | 'high';
+};
+
 export default function ReviewPage() {
   const [data, setData] = useState<SummaryResp | null>(null);
   const [aiAudit, setAiAudit] = useState<AiAuditResp | null>(null);
   const [pveDiff, setPveDiff] = useState<PveDiffResp | null>(null);
+  const [versionCompare, setVersionCompare] = useState<VersionCompareResp | null>(null);
 
   useEffect(() => {
     fetch('/api/review/summary')
@@ -54,6 +63,11 @@ export default function ReviewPage() {
       .then((r) => r.json())
       .then((d) => setPveDiff(d))
       .catch(() => setPveDiff(null));
+
+    fetch('/api/review/version-compare')
+      .then((r) => r.json())
+      .then((d) => setVersionCompare(d))
+      .catch(() => setVersionCompare(null));
   }, []);
 
   return (
@@ -121,6 +135,21 @@ export default function ReviewPage() {
                     <p className={`text-xs ${s.difficultyFlag === '正常' ? 'text-emerald-300' : 'text-amber-300'}`}>难度标记：{s.difficultyFlag}</p>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-2 text-base font-semibold">版本对比 Review（A/B）</h2>
+            {!versionCompare ? (
+              <p className="text-sm text-zinc-400">暂无版本对比数据</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>Left: {versionCompare.left.version}（{versionCompare.left.matches} 场） / Right: {versionCompare.right.version}（{versionCompare.right.matches} 场）</p>
+                <p>玩家胜率变化：{(versionCompare.delta.playerWinRate * 100).toFixed(1)}% · 平均时长变化：{versionCompare.delta.avgTurns}s · 平局率变化：{(versionCompare.delta.drawRate * 100).toFixed(1)}%</p>
+                <p className={versionCompare.risk === 'low' ? 'text-emerald-300' : versionCompare.risk === 'medium' ? 'text-amber-300' : 'text-rose-300'}>
+                  回归风险：{versionCompare.risk}
+                </p>
               </div>
             )}
           </section>
