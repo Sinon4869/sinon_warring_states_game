@@ -139,8 +139,22 @@ jobs:
       - name: Build OpenNext Cloudflare worker
         run: pnpm exec opennextjs-cloudflare build
 
-      - name: Deploy OpenNext bundle
-        run: pnpm exec opennextjs-cloudflare deploy --config wrangler.generated.toml
+      - name: Deploy OpenNext bundle (with retry)
+        run: |
+          set -e
+          for i in 1 2 3; do
+            echo "Deploy attempt $i/3"
+            if pnpm exec opennextjs-cloudflare deploy --config wrangler.generated.toml; then
+              echo "Deploy succeeded on attempt $i"
+              exit 0
+            fi
+            if [ "$i" -lt 3 ]; then
+              echo "Deploy failed (likely transient API timeout), retry in 15s..."
+              sleep 15
+            fi
+          done
+          echo "Deploy failed after 3 attempts"
+          exit 1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
