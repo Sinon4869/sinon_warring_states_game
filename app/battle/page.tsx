@@ -109,6 +109,7 @@ export default function BattlePage() {
   const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
   const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
+  const [selectedLane, setSelectedLane] = useState(1);
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
@@ -578,35 +579,38 @@ export default function BattlePage() {
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
-        <p className="mb-2 text-sm text-zinc-300">线路战术指令（无卡）</p>
-        <div className="mb-3 grid gap-2 md:grid-cols-3">
-          {[0, 1, 2].map((lane) => {
-            const order = laneOrders[lane];
-            const playerCount = units.filter((u) => u.owner === 'player' && u.lane === lane).length;
-            return (
-              <div key={`order-${lane}`} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-                <p className="text-xs text-zinc-400">第{lane + 1}路 · 驻军 {playerCount}/8</p>
-                <div className="mt-2 grid grid-cols-3 gap-1">
-                  {([
-                    ['hold', '固守'],
-                    ['push', '推进'],
-                    ['burst', '强攻']
-                  ] as const).map(([k, label]) => (
-                    <button
-                      key={`${lane}-${k}`}
-                      onClick={() => setLaneOrders((prev) => prev.map((v, i) => (i === lane ? k : v)) as LaneOrder[])}
-                      className={`chip-btn px-1 py-1 text-[11px] ${order === k ? 'border-cyan-400/70 text-cyan-300' : ''}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <p className="mb-2 text-sm text-zinc-300">单手操作模式（先选一路，再点兵种）</p>
+        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+          <div className="mb-2 flex gap-2">
+            {[0, 1, 2].map((lane) => (
+              <button
+                key={`lane-select-${lane}`}
+                onClick={() => setSelectedLane(lane)}
+                className={`chip-btn flex-1 ${selectedLane === lane ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+              >
+                第{lane + 1}路
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {([
+              ['hold', '固守'],
+              ['push', '推进'],
+              ['burst', '强攻']
+            ] as const).map(([k, label]) => (
+              <button
+                key={`selected-${k}`}
+                onClick={() => setLaneOrders((prev) => prev.map((v, i) => (i === selectedLane ? k : v)) as LaneOrder[])}
+                className={`chip-btn flex-1 ${laneOrders[selectedLane] === k ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">当前指挥：第{selectedLane + 1}路 / {laneOrders[selectedLane] === 'hold' ? '固守' : laneOrders[selectedLane] === 'push' ? '推进' : '强攻'}</p>
         </div>
 
-        <p className="mb-2 text-sm text-zinc-300">兵种调度（无卡）</p>
+        <p className="mb-2 text-sm text-zinc-300">兵种调度（点击即投放到当前路线）</p>
         <div className="grid gap-2 md:grid-cols-4">
           {TROOPS.map((t) => {
             const cd = playerTroopCd[t.id] ?? 0;
@@ -621,17 +625,14 @@ export default function BattlePage() {
                   </div>
                 </div>
                 <p className="mt-1 text-[11px] text-cyan-300">{cd > 0 ? `冷却中 ${Math.ceil(cd / 1000)}s` : '可用'}</p>
-                <div className="mt-2 flex gap-1">
-                  {[0, 1, 2].map((lane) => (
-                    <button
-                      key={`${t.id}-${lane}`}
-                      onClick={() => deploy('player', t, lane)}
-                      disabled={disabled}
-                      className="chip-btn px-2 py-1 text-xs"
-                    >
-                      线{lane + 1}
-                    </button>
-                  ))}
+                <div className="mt-2">
+                  <button
+                    onClick={() => deploy('player', t, selectedLane)}
+                    disabled={disabled}
+                    className="chip-btn w-full px-2 py-1 text-xs"
+                  >
+                    投放到第{selectedLane + 1}路
+                  </button>
                 </div>
               </div>
             );
@@ -640,15 +641,26 @@ export default function BattlePage() {
       </section>
 
       <section className="fixed inset-x-0 bottom-0 z-20 border-t border-cyan-500/30 bg-zinc-950/90 px-3 py-2 backdrop-blur md:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
-        <p className="mb-1 text-[11px] text-zinc-400">移动端快速调度（步兵）</p>
-        <div className="grid grid-cols-3 gap-2">
+        <p className="mb-1 text-[11px] text-zinc-400">移动端快操：先选路线，再点兵种</p>
+        <div className="mb-2 grid grid-cols-3 gap-2">
           {[0, 1, 2].map((lane) => (
             <button
-              key={`quick-${lane}`}
-              onClick={() => deploy('player', TROOPS[0], lane)}
+              key={`quick-lane-${lane}`}
+              onClick={() => setSelectedLane(lane)}
+              className={`chip-btn text-xs ${selectedLane === lane ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+            >
+              第{lane + 1}路
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {TROOPS.map((t) => (
+            <button
+              key={`quick-troop-${t.id}`}
+              onClick={() => deploy('player', t, selectedLane)}
               className="chip-btn border-cyan-400/60 text-xs"
             >
-              线{lane + 1} 快投
+              {t.name}
             </button>
           ))}
         </div>
