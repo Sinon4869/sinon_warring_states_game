@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { track } from '@/lib/telemetry';
@@ -29,6 +30,14 @@ type Unit = {
   speed: number;
   range: number;
   cooldown: number;
+};
+
+type CombatFx = {
+  id: string;
+  lane: number;
+  x: number;
+  text: string;
+  color: 'cyan' | 'rose';
 };
 
 const TROOPS: Troop[] = [
@@ -71,6 +80,7 @@ export default function BattlePage() {
 
   const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
+  const [effects, setEffects] = useState<CombatFx[]>([]);
 
   const aiThink = useRef(0);
 
@@ -78,6 +88,14 @@ export default function BattlePage() {
     if (typeof window !== 'undefined') {
       setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
     }
+  }, []);
+
+  const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color']) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setEffects((prev) => [...prev, { id, lane, x, text, color }].slice(-40));
+    setTimeout(() => {
+      setEffects((prev) => prev.filter((f) => f.id !== id));
+    }, 650);
   }, []);
 
   const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
@@ -92,8 +110,9 @@ export default function BattlePage() {
       setAiTroopCd((s) => ({ ...s, [troop.id]: troop.cdMs }));
     }
     setUnits((prev) => [...prev, makeUnit(troop, owner, lane)]);
+    spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
     track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
-  }, [running, playerTroopCd, aiTroopCd]);
+  }, [running, playerTroopCd, aiTroopCd, spawnFx]);
 
   useEffect(() => {
     if (!running) return;
@@ -146,6 +165,7 @@ export default function BattlePage() {
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
             if (unit.cooldown <= 0) {
               nearest.hp -= unit.atk;
+              spawnFx(unit.lane, nearest.x, `-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
             continue;
@@ -156,6 +176,7 @@ export default function BattlePage() {
           if (targetTower[unit.lane] > 0 && Math.abs(unit.x - towerX) <= unit.range) {
             if (unit.cooldown <= 0) {
               targetTower[unit.lane] -= unit.atk;
+              spawnFx(unit.lane, towerX, `塔-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
             continue;
@@ -166,6 +187,7 @@ export default function BattlePage() {
             if (unit.cooldown <= 0) {
               if (unit.owner === 'player') aCore -= unit.atk;
               else pCore -= unit.atk;
+              spawnFx(unit.lane, coreX, `本阵-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
             continue;
@@ -178,7 +200,10 @@ export default function BattlePage() {
           if (towerHp <= 0) return;
           const x = owner === 'player' ? 12 : 88;
           const enemies = next.filter((u) => u.owner !== owner && u.lane === lane && Math.abs(u.x - x) <= 18 && u.hp > 0);
-          if (enemies.length > 0) enemies[0].hp -= 16;
+          if (enemies.length > 0) {
+            enemies[0].hp -= 16;
+            spawnFx(lane, enemies[0].x, '-16', owner === 'player' ? 'cyan' : 'rose');
+          }
         };
 
         [0, 1, 2].forEach((lane) => {
@@ -202,7 +227,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -237,34 +262,67 @@ export default function BattlePage() {
         </Link>
       </header>
 
-      <section className="panel p-4">
-        <div className="mb-3 grid gap-2 text-sm md:grid-cols-4">
-          <p>⏱ 剩余：{Math.ceil(timeLeft)}s</p>
-          <p>🛡 我方本阵：{Math.round(playerCore)}</p>
-          <p>🏴 敌方本阵：{Math.round(aiCore)}</p>
-          <p className="font-semibold text-cyan-300">{result || '战斗进行中...'}</p>
+      <section className="panel space-y-3 p-4">
+        <div className="grid gap-2 text-sm md:grid-cols-4">
+          <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">⏱ 剩余：{Math.ceil(timeLeft)}s</div>
+          <div className="rounded-md border border-zinc-700 bg-zinc-900/70 px-3 py-2">🛡 我方本阵：{Math.round(playerCore)}</div>
+          <div className="rounded-md border border-zinc-700 bg-zinc-900/70 px-3 py-2">🏴 敌方本阵：{Math.round(aiCore)}</div>
+          <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
         </div>
 
         <div className="space-y-2">
-          {[0, 1, 2].map((lane) => (
-            <div key={lane} className="relative h-16 rounded border border-zinc-700 bg-zinc-950/60">
-              <div className="absolute left-1 top-1 text-[10px] text-zinc-400">我塔 {Math.round(playerTowers[lane])}</div>
-              <div className="absolute right-1 top-1 text-[10px] text-zinc-400">敌塔 {Math.round(aiTowers[lane])}</div>
-              {units
-                .filter((u) => u.lane === lane)
-                .map((u) => (
-                  <div
-                    key={u.uid}
-                    className={`absolute top-7 h-3 w-3 rounded-full ${u.owner === 'player' ? 'bg-cyan-400' : 'bg-rose-400'}`}
-                    style={{ left: `calc(${u.x}% - 6px)` }}
-                    title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)}`}
-                  />
-                ))}
-            </div>
-          ))}
+          {[0, 1, 2].map((lane) => {
+            const playerPower = units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
+            const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
+            const total = Math.max(1, playerPower + aiPower);
+            const playerPct = (playerPower / total) * 100;
+            return (
+              <div key={lane} className="relative h-20 overflow-hidden rounded border border-zinc-700 bg-zinc-950/70">
+                <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800">
+                  <div className="h-full bg-cyan-400/70" style={{ width: `${playerPct}%` }} />
+                </div>
+                <div className="absolute left-2 top-2 text-[10px] text-zinc-400">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
+                <div className="absolute right-2 top-2 text-[10px] text-zinc-400">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className="absolute inset-y-0 left-[50%] w-px bg-cyan-500/30" />
+                <AnimatePresence>
+                  {units
+                    .filter((u) => u.lane === lane)
+                    .map((u) => (
+                      <motion.div
+                        key={u.uid}
+                        className={`absolute top-10 h-3 w-3 rounded-full ${u.owner === 'player' ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]'}`}
+                        style={{ left: `calc(${u.x}% - 6px)` }}
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: u.cooldown > 0 ? 1.25 : 1, opacity: 1 }}
+                        exit={{ scale: 0.1, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)}`}
+                      />
+                    ))}
+                </AnimatePresence>
+                <AnimatePresence>
+                  {effects
+                    .filter((f) => f.lane === lane)
+                    .map((f) => (
+                      <motion.div
+                        key={f.id}
+                        className={`absolute top-9 text-[10px] font-semibold ${f.color === 'cyan' ? 'text-cyan-300' : 'text-rose-300'}`}
+                        style={{ left: `calc(${f.x}% - 10px)` }}
+                        initial={{ y: 8, opacity: 0 }}
+                        animate={{ y: -12, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        transition={{ duration: 0.45 }}
+                      >
+                        {f.text}
+                      </motion.div>
+                    ))}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </div>
-        <p className="mt-2 text-xs text-zinc-400">AI 人格：{aiPersona}</p>
-        <div className="mt-1 space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
+        <p className="text-xs text-zinc-400">AI 人格：{aiPersona}</p>
+        <div className="space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
