@@ -28,6 +28,9 @@ export default function HomePage() {
               <Link href="/tutorial">新手章节</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
+              <Link href="/pve">关卡战役</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
               <Link href="/multiplayer">同步实验</Link>
             </Button>
             <Button asChild variant="outline" size="lg">

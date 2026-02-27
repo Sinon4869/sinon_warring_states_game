@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
 import { detectAssetTier, loadManifest, preloadAssets, selectAssets } from '@/lib/assets/pipeline';
+import { getPveStage } from '@/lib/game/pve';
 
 type Side = 'player' | 'ai';
 
@@ -70,7 +71,10 @@ export default function BattlePage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [timeLeft, setTimeLeft] = useState(120);
   const [running, setRunning] = useState(true);
-  const [aiPersona] = useState<'aggressive' | 'balanced' | 'defensive'>(() => {
+  const [battleMode, setBattleMode] = useState<'normal' | 'pve'>('normal');
+  const [stageName, setStageName] = useState<string>('标准对战');
+  const [atkRate, setAtkRate] = useState<{ player: number; ai: number }>({ player: 1, ai: 1 });
+  const [aiPersona, setAiPersona] = useState<'aggressive' | 'balanced' | 'defensive'>(() => {
     const personas: Array<'aggressive' | 'balanced' | 'defensive'> = ['aggressive', 'balanced', 'defensive'];
     return personas[Math.floor(Math.random() * personas.length)];
   });
@@ -93,8 +97,20 @@ export default function BattlePage() {
   const aiThink = useRef(0);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setFromCampaign(params.get('from') === 'campaign');
+
+    const mode = params.get('mode');
+    const stage = getPveStage(params.get('stage'));
+    if (mode === 'pve' && stage) {
+      setBattleMode('pve');
+      setStageName(`${stage.id.toUpperCase()} ${stage.name}`);
+      setAiPersona(stage.aiPersona);
+      setTimeLeft(stage.timeLimit);
+      setPlayerCore(stage.playerCore);
+      setAiCore(stage.aiCore);
+      setAtkRate({ player: stage.playerAtkRate, ai: stage.aiAtkRate });
     }
   }, []);
 
@@ -229,7 +245,8 @@ export default function BattlePage() {
           const enemies = next.filter((x) => x.owner !== unit.owner && x.lane === unit.lane && x.hp > 0);
           const nearest = enemies.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
           const order = unit.owner === 'player' ? laneOrders[unit.lane] ?? 'hold' : 'hold';
-          const atkFactor = order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1;
+          const sideRate = unit.owner === 'player' ? atkRate.player : atkRate.ai;
+          const atkFactor = (order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1) * sideRate;
           const moveFactor = order === 'push' ? 1.18 : order === 'hold' ? 0.92 : 1;
 
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
@@ -246,8 +263,9 @@ export default function BattlePage() {
           const towerX = unit.owner === 'player' ? 88 : 12;
           if (targetTower[unit.lane] > 0 && Math.abs(unit.x - towerX) <= unit.range) {
             if (unit.cooldown <= 0) {
-              targetTower[unit.lane] -= unit.atk;
-              spawnFx(unit.lane, towerX, `塔-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              const towerDamage = Math.round(unit.atk * sideRate);
+              targetTower[unit.lane] -= towerDamage;
+              spawnFx(unit.lane, towerX, `塔-${towerDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
             continue;
@@ -256,15 +274,16 @@ export default function BattlePage() {
           const coreX = unit.owner === 'player' ? 96 : 4;
           if (Math.abs(unit.x - coreX) <= unit.range) {
             if (unit.cooldown <= 0) {
+              const coreDamage = Math.round(unit.atk * sideRate);
               if (unit.owner === 'player') {
-                aCore -= unit.atk;
+                aCore -= coreDamage;
                 setCoreFlash('ai');
               } else {
-                pCore -= unit.atk;
+                pCore -= coreDamage;
                 setCoreFlash('player');
               }
               setShake(10);
-              spawnFx(unit.lane, coreX, `本阵-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              spawnFx(unit.lane, coreX, `本阵-${coreDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
               unit.cooldown = 0.8;
             }
             continue;
@@ -304,7 +323,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction, atkRate]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -334,8 +353,9 @@ export default function BattlePage() {
     >
       <header className="panel flex items-start justify-between gap-3 px-4 py-3">
         <div>
-          <p className="text-xs tracking-[0.2em] text-cyan-300">TACTICAL BATTLE</p>
+          <p className="text-xs tracking-[0.2em] text-cyan-300">TACTICAL BATTLE · {battleMode.toUpperCase()}</p>
           <h1 className="text-xl font-semibold">无卡纯对战模式</h1>
+          <p className="text-xs text-zinc-500">关卡：{stageName}</p>
         </div>
         <Link href={fromCampaign ? '/campaign' : '/'} className="text-sm text-cyan-300 hover:underline">
           {fromCampaign ? '返回战役' : '返回首页'}
