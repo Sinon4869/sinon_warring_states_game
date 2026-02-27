@@ -63,6 +63,13 @@ const TROOPS: Troop[] = [
   { id: 'archer', name: '弓兵', hp: 75, atk: 18, speed: 8, range: 12, cdMs: 3000 }
 ];
 
+const TROOP_ART: Record<string, string> = {
+  infantry: '/assets/units/infantry.svg',
+  spear: '/assets/units/spear.svg',
+  cavalry: '/assets/units/cavalry.svg',
+  archer: '/assets/units/archer.svg'
+};
+
 function makeUnit(troop: Troop, owner: Side, lane: number): Unit {
   return {
     uid: `${owner}-${troop.id}-${Math.random().toString(36).slice(2, 8)}`,
@@ -512,27 +519,37 @@ export default function BattlePage() {
             const total = Math.max(1, playerPower + aiPower);
             const playerPct = (playerPower / total) * 100;
             return (
-              <div key={lane} className="relative h-20 overflow-hidden rounded border border-zinc-700 bg-zinc-950/70">
+              <div key={lane} className="relative h-24 overflow-hidden rounded border border-zinc-700 bg-gradient-to-r from-zinc-950/90 via-slate-900/80 to-zinc-950/90">
                 <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800">
                   <div className="h-full bg-cyan-400/70" style={{ width: `${playerPct}%` }} />
                 </div>
                 <div className="absolute left-2 top-2 text-[10px] text-zinc-400">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
                 <div className="absolute right-2 top-2 text-[10px] text-zinc-400">敌塔 {Math.round(aiTowers[lane])}</div>
                 <div className="absolute inset-y-0 left-[50%] w-px bg-cyan-500/30" />
+                <div className="absolute inset-x-0 top-[58%] h-[2px] bg-zinc-700/60" />
                 <AnimatePresence>
                   {units
                     .filter((u) => u.lane === lane)
                     .map((u) => (
                       <motion.div
                         key={u.uid}
-                        className={`absolute top-10 h-3 w-3 rounded-full ${u.owner === 'player' ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]'}`}
-                        style={{ left: `calc(${u.x}% - 6px)` }}
+                        className={`absolute top-9 w-7 ${u.owner === 'player' ? '' : ''}`}
+                        style={{ left: `calc(${u.x}% - 14px)` }}
                         initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: u.cooldown > 0 ? 1.25 : 1, opacity: 1 }}
+                        animate={{ scale: u.cooldown > 0 ? 1.12 : 1, opacity: 1 }}
                         exit={{ scale: 0.1, opacity: 0 }}
                         transition={{ duration: 0.15 }}
                         title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)}`}
-                      />
+                      >
+                        <img
+                          src={TROOP_ART[u.troopId] ?? '/assets/units/fallback.svg'}
+                          alt={u.troopId}
+                          className={`h-7 w-7 rounded ${u.owner === 'player' ? 'ring-1 ring-cyan-300/70' : 'ring-1 ring-rose-300/70'}`}
+                        />
+                        <div className="mt-0.5 h-1 w-7 rounded bg-zinc-800">
+                          <div className={`h-1 rounded ${u.owner === 'player' ? 'bg-cyan-400' : 'bg-rose-400'}`} style={{ width: `${Math.max(8, Math.min(100, (u.hp / 150) * 100))}%` }} />
+                        </div>
+                      </motion.div>
                     ))}
                 </AnimatePresence>
                 <AnimatePresence>
@@ -595,9 +612,14 @@ export default function BattlePage() {
             const cd = playerTroopCd[t.id] ?? 0;
             const disabled = cd > 0 || !running;
             return (
-              <div key={t.id} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-                <p className="font-medium">{t.name}</p>
-                <p className="text-xs text-zinc-400">CD {Math.ceil(t.cdMs / 1000)}s · HP {t.hp} · ATK {t.atk}</p>
+              <div key={t.id} className="rounded-lg border border-zinc-700 bg-zinc-950/70 p-3 shadow-[0_0_18px_rgba(34,211,238,0.08)]">
+                <div className="flex items-center gap-2">
+                  <img src={TROOP_ART[t.id] ?? '/assets/units/fallback.svg'} alt={t.name} className="h-9 w-9 rounded border border-zinc-600" />
+                  <div>
+                    <p className="font-medium">{t.name}</p>
+                    <p className="text-xs text-zinc-400">CD {Math.ceil(t.cdMs / 1000)}s · HP {t.hp} · ATK {t.atk}</p>
+                  </div>
+                </div>
                 <p className="mt-1 text-[11px] text-cyan-300">{cd > 0 ? `冷却中 ${Math.ceil(cd / 1000)}s` : '可用'}</p>
                 <div className="mt-2 flex gap-1">
                   {[0, 1, 2].map((lane) => (

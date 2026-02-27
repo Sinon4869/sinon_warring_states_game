@@ -16,6 +16,20 @@
       "tier": "mid"
     },
     {
+      "id": "unit-spear",
+      "kind": "unit",
+      "src": "/assets/units/spear.svg",
+      "fallbackSrc": "/assets/units/fallback.svg",
+      "tier": "mid"
+    },
+    {
+      "id": "unit-archer",
+      "kind": "unit",
+      "src": "/assets/units/archer.svg",
+      "fallbackSrc": "/assets/units/fallback.svg",
+      "tier": "mid"
+    },
+    {
       "id": "fx-hit",
       "kind": "fx",
       "src": "/assets/fx/hit.webp",
