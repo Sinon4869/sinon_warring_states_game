@@ -116,6 +116,7 @@ export default function BattlePage() {
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
   const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
   const [selectedLane, setSelectedLane] = useState(1);
+  const [autoDeploy, setAutoDeploy] = useState(true);
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
@@ -123,6 +124,7 @@ export default function BattlePage() {
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
 
   const aiThink = useRef(0);
+  const playerThink = useRef(0);
   const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   const startedRef = useRef(false);
   const timeLimitRef = useRef(BASE_TIME_LIMIT);
@@ -140,6 +142,8 @@ export default function BattlePage() {
   const timeLeftRef = useRef(BASE_TIME_LIMIT);
   const battleModeRef = useRef<'normal' | 'pve' | 'campaign'>('normal');
   const stageNameRef = useRef('标准对战');
+  const selectedLaneRef = useRef(1);
+  const autoDeployRef = useRef(true);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -215,6 +219,8 @@ export default function BattlePage() {
   useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
   useEffect(() => { battleModeRef.current = battleMode; }, [battleMode]);
   useEffect(() => { stageNameRef.current = stageName; }, [stageName]);
+  useEffect(() => { selectedLaneRef.current = selectedLane; }, [selectedLane]);
+  useEffect(() => { autoDeployRef.current = autoDeploy; }, [autoDeploy]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +286,16 @@ export default function BattlePage() {
     });
   }, [running, spawnFx]);
 
+  const choosePlayerAutoTroop = useCallback((lane: number) => {
+    const order = laneOrdersRef.current[lane] ?? 'hold';
+    const available = TROOPS.filter((t) => (playerTroopCdRef.current[t.id] ?? 0) <= 0);
+    if (available.length === 0) return null;
+
+    if (order === 'hold') return [...available].sort((a, b) => b.hp - a.hp)[0];
+    if (order === 'push') return [...available].sort((a, b) => b.speed + b.atk * 0.6 - (a.speed + a.atk * 0.6))[0];
+    return [...available].sort((a, b) => b.atk - a.atk)[0];
+  }, []);
+
   const chooseAiAction = useCallback(() => {
     const laneStats = [0, 1, 2].map((lane) => {
       const playerPower = unitsRef.current.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk * 1.2, 0);
@@ -339,6 +355,16 @@ export default function BattlePage() {
         aiTroopCdRef.current = next;
         return next;
       });
+
+      playerThink.current += dt;
+      if (autoDeployRef.current && playerThink.current >= 1.1) {
+        playerThink.current = 0;
+        const lane = selectedLaneRef.current;
+        const troop = choosePlayerAutoTroop(lane);
+        if (troop) {
+          deploy('player', troop, lane);
+        }
+      }
 
       aiThink.current += dt;
       if (aiThink.current >= 1.0) {
@@ -467,7 +493,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, deploy, spawnFx, chooseAiAction]);
+  }, [running, deploy, spawnFx, chooseAiAction, choosePlayerAutoTroop]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -616,7 +642,15 @@ export default function BattlePage() {
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
-        <p className="mb-2 text-sm text-zinc-300">单手操作模式（先选一路，再点兵种）</p>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-sm text-zinc-300">单手操作模式（先选一路，再点兵种）</p>
+          <button
+            onClick={() => setAutoDeploy((v) => !v)}
+            className={`chip-btn text-xs ${autoDeploy ? 'border-emerald-400/70 text-emerald-300' : ''}`}
+          >
+            自动投放：{autoDeploy ? '开' : '关'}
+          </button>
+        </div>
         <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
           <div className="mb-2 flex gap-2">
             {[0, 1, 2].map((lane) => (
