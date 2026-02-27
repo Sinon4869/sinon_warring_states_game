@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
+import { detectAssetTier, loadManifest, preloadAssets, selectAssets } from '@/lib/assets/pipeline';
 
 type Side = 'player' | 'ai';
 
@@ -84,6 +85,8 @@ export default function BattlePage() {
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
   const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
   const [effects, setEffects] = useState<CombatFx[]>([]);
+  const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
+  const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
   const [shake, setShake] = useState(0);
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
 
@@ -93,6 +96,20 @@ export default function BattlePage() {
     if (typeof window !== 'undefined') {
       setFromCampaign(new URLSearchParams(window.location.search).get('from') === 'campaign');
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tier = detectAssetTier();
+    setAssetTier(tier);
+    loadManifest()
+      .then((manifest) => preloadAssets(selectAssets(manifest, tier)))
+      .finally(() => {
+        if (!cancelled) setAssetStatus('ready');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -332,6 +349,7 @@ export default function BattlePage() {
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'ai' ? 'border-cyan-400 bg-cyan-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🏴 敌方本阵：{Math.round(aiCore)}</div>
           <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
         </div>
+        <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'}</p>
 
         <div className="space-y-2">
           {[0, 1, 2].map((lane) => {

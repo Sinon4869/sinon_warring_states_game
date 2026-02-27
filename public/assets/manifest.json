@@ -1,0 +1,39 @@
+{
+  "version": "v1",
+  "entries": [
+    {
+      "id": "unit-infantry",
+      "kind": "unit",
+      "src": "/assets/units/infantry.svg",
+      "fallbackSrc": "/assets/units/fallback.svg",
+      "tier": "low"
+    },
+    {
+      "id": "unit-cavalry",
+      "kind": "unit",
+      "src": "/assets/units/cavalry.svg",
+      "fallbackSrc": "/assets/units/fallback.svg",
+      "tier": "mid"
+    },
+    {
+      "id": "fx-hit",
+      "kind": "fx",
+      "src": "/assets/fx/hit.webp",
+      "fallbackSrc": "/assets/fx/hit-fallback.svg",
+      "tier": "mid"
+    },
+    {
+      "id": "fx-core",
+      "kind": "fx",
+      "src": "/assets/fx/core.webp",
+      "fallbackSrc": "/assets/fx/core-fallback.svg",
+      "tier": "high"
+    },
+    {
+      "id": "audio-hit",
+      "kind": "audio",
+      "src": "/assets/audio/hit.mp3",
+      "tier": "low"
+    }
+  ]
+}
