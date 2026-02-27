@@ -91,6 +91,33 @@ function makeUnit(troop: Troop, owner: Side, lane: number): Unit {
   };
 }
 
+function computeOutcome(playerCore: number, aiCore: number, playerTowers: number[], aiTowers: number[]) {
+  const playerTowerSum = playerTowers.reduce((a, b) => a + b, 0);
+  const aiTowerSum = aiTowers.reduce((a, b) => a + b, 0);
+  const playerScore = playerCore + playerTowerSum * 0.6;
+  const aiScore = aiCore + aiTowerSum * 0.6;
+
+  if (playerCore <= 0 && aiCore <= 0) {
+    return { winner: 'draw' as const, reason: '双方本阵同时被击破', text: '平局' };
+  }
+  if (aiCore <= 0) {
+    return { winner: 'player' as const, reason: '敌方本阵被击破', text: '你胜利（天下布武推进）' };
+  }
+  if (playerCore <= 0) {
+    return { winner: 'ai' as const, reason: '我方本阵被击破', text: '你战败（需调整策略）' };
+  }
+
+  if (Math.abs(playerScore - aiScore) <= 18) {
+    return { winner: 'draw' as const, reason: '积分差在平局阈值内', text: '时间结束：险平（按塔血判定）' };
+  }
+
+  if (playerScore > aiScore) {
+    return { winner: 'player' as const, reason: '本阵+塔血积分领先', text: '时间结束：你占优' };
+  }
+
+  return { winner: 'ai' as const, reason: '本阵+塔血积分落后', text: '时间结束：AI 占优' };
+}
+
 export default function BattlePage() {
   const [fromCampaign, setFromCampaign] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -122,6 +149,7 @@ export default function BattlePage() {
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
+  const [settlement, setSettlement] = useState<{ winner: BattleWriteback['winner']; reason: string; playerScore: number; aiScore: number } | null>(null);
   const [shake, setShake] = useState(0);
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
 
@@ -507,47 +535,41 @@ export default function BattlePage() {
     return () => clearInterval(timer);
   }, [running, deploy, spawnFx, chooseAiAction, choosePlayerAutoTroop]);
 
-  const result = useMemo(() => {
-    if (running) return '';
-    const playerTowerSum = playerTowers.reduce((a, b) => a + b, 0);
-    const aiTowerSum = aiTowers.reduce((a, b) => a + b, 0);
-    const playerScore = playerCore + playerTowerSum * 0.6;
-    const aiScore = aiCore + aiTowerSum * 0.6;
+  const phaseLabel = useMemo(() => {
+    if (!running) return '终局结算';
+    if (timeLeft > 30) return '常规阶段';
+    return '加时狂暴';
+  }, [running, timeLeft]);
 
-    if (playerCore <= 0 && aiCore <= 0) return '平局';
-    if (aiCore <= 0) return '你胜利（天下布武推进）';
-    if (playerCore <= 0) return '你战败（需调整策略）';
-    if (Math.abs(playerScore - aiScore) <= 18) return '时间结束：险平（按塔血判定）';
-    return playerScore > aiScore ? '时间结束：你占优' : '时间结束：AI 占优';
-  }, [running, playerCore, aiCore, playerTowers, aiTowers]);
+  const result = useMemo(() => {
+    if (running || !settlement) return '';
+    if (settlement.winner === 'player') return '你胜利（天下布武推进）';
+    if (settlement.winner === 'ai') return '你战败（需调整策略）';
+    return '时间结束：险平（按塔血判定）';
+  }, [running, settlement]);
 
   useEffect(() => {
     if (running) return;
     const playerTowerSum = playerTowers.reduce((a, b) => a + b, 0);
     const aiTowerSum = aiTowers.reduce((a, b) => a + b, 0);
-    const playerScore = playerCore + playerTowerSum * 0.6;
-    const aiScore = aiCore + aiTowerSum * 0.6;
-    const winner: BattleWriteback['winner'] = aiCore <= 0
-      ? 'player'
-      : playerCore <= 0
-        ? 'ai'
-        : Math.abs(playerScore - aiScore) <= 18
-          ? 'draw'
-          : playerScore > aiScore
-            ? 'player'
-            : 'ai';
+    const playerScore = Number((playerCore + playerTowerSum * 0.6).toFixed(1));
+    const aiScore = Number((aiCore + aiTowerSum * 0.6).toFixed(1));
+    const outcome = computeOutcome(playerCore, aiCore, playerTowers, aiTowers);
+
+    setSettlement({ winner: outcome.winner, reason: outcome.reason, playerScore, aiScore });
 
     const report: BattleWriteback = {
-      winner,
+      winner: outcome.winner,
       playerCoreHp: Math.round(playerCore),
       aiCoreHp: Math.round(aiCore),
       turnsUsed: Math.max(0, timeLimitRef.current - Math.ceil(timeLeft))
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
+    localStorage.setItem('sws-battle-settlement', JSON.stringify({ ...report, reason: outcome.reason, playerScore, aiScore }));
     track({
       name: 'battle_result',
       at: Date.now(),
-      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null }
+      props: { matchId: matchIdRef.current, winner: report.winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null, reason: outcome.reason }
     });
   }, [running, playerCore, aiCore, playerTowers, aiTowers, timeLeft, battleMode, stageName, campaignContext]);
 
@@ -581,7 +603,7 @@ export default function BattlePage() {
 
       <section className="panel space-y-3 p-4">
         <div className="grid gap-2 text-sm md:grid-cols-4">
-          <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">⏱ 剩余：{Math.ceil(timeLeft)}s</div>
+          <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">⏱ 剩余：{Math.ceil(timeLeft)}s · {phaseLabel}</div>
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'player' ? 'border-rose-400 bg-rose-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🛡 我方本阵：{Math.round(playerCore)}</div>
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'ai' ? 'border-cyan-400 bg-cyan-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🏴 敌方本阵：{Math.round(aiCore)}</div>
           <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
@@ -652,6 +674,19 @@ export default function BattlePage() {
         <p className="text-xs text-zinc-400">AI 人格：{aiPersona}</p>
         <div className="space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
       </section>
+
+      {!running && settlement && (
+        <section className="panel p-4">
+          <h2 className="mb-2 text-base font-semibold">战斗结算</h2>
+          <div className="grid gap-2 text-sm md:grid-cols-2">
+            <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">判定结果：{settlement.winner === 'player' ? '我方胜利' : settlement.winner === 'ai' ? '敌方胜利' : '平局'}</p>
+            <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">判定理由：{settlement.reason}</p>
+            <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">我方积分：{settlement.playerScore}</p>
+            <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">敌方积分：{settlement.aiScore}</p>
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">优先级：本阵击破 {'>'} 积分判定 {'>'} 平局阈值</p>
+        </section>
+      )}
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
