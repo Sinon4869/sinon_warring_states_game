@@ -56,11 +56,15 @@ type BattleContext = {
   recommended: 'expand' | 'fortify' | 'rest';
 };
 
+const BASE_TOWER_HP = 680;
+const BASE_CORE_HP = 1300;
+const BASE_TIME_LIMIT = 120;
+
 const TROOPS: Troop[] = [
-  { id: 'infantry', name: '步兵', hp: 120, atk: 16, speed: 10, range: 4, cdMs: 2200 },
-  { id: 'spear', name: '枪兵', hp: 95, atk: 19, speed: 11, range: 5, cdMs: 2600 },
-  { id: 'cavalry', name: '骑兵', hp: 150, atk: 22, speed: 14, range: 5, cdMs: 3600 },
-  { id: 'archer', name: '弓兵', hp: 75, atk: 18, speed: 8, range: 12, cdMs: 3000 }
+  { id: 'infantry', name: '步兵', hp: 120, atk: 20, speed: 10.5, range: 4, cdMs: 1900 },
+  { id: 'spear', name: '枪兵', hp: 100, atk: 23, speed: 11.5, range: 5, cdMs: 2200 },
+  { id: 'cavalry', name: '骑兵', hp: 150, atk: 28, speed: 14.5, range: 5, cdMs: 3000 },
+  { id: 'archer', name: '弓兵', hp: 80, atk: 22, speed: 8.5, range: 12, cdMs: 2500 }
 ];
 
 const TROOP_ART: Record<string, string> = {
@@ -88,7 +92,7 @@ function makeUnit(troop: Troop, owner: Side, lane: number): Unit {
 export default function BattlePage() {
   const [fromCampaign, setFromCampaign] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [timeLeft, setTimeLeft] = useState(120);
+  const [timeLeft, setTimeLeft] = useState(BASE_TIME_LIMIT);
   const [running, setRunning] = useState(true);
   const [battleMode, setBattleMode] = useState<'normal' | 'pve' | 'campaign'>('normal');
   const [stageName, setStageName] = useState<string>('标准对战');
@@ -101,10 +105,10 @@ export default function BattlePage() {
   });
   const [aiLogs, setAiLogs] = useState<string[]>([]);
 
-  const [playerTowers, setPlayerTowers] = useState([900, 900, 900]);
-  const [aiTowers, setAiTowers] = useState([900, 900, 900]);
-  const [playerCore, setPlayerCore] = useState(1800);
-  const [aiCore, setAiCore] = useState(1800);
+  const [playerTowers, setPlayerTowers] = useState([BASE_TOWER_HP, BASE_TOWER_HP, BASE_TOWER_HP]);
+  const [aiTowers, setAiTowers] = useState([BASE_TOWER_HP, BASE_TOWER_HP, BASE_TOWER_HP]);
+  const [playerCore, setPlayerCore] = useState(BASE_CORE_HP);
+  const [aiCore, setAiCore] = useState(BASE_CORE_HP);
 
   const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
@@ -119,18 +123,19 @@ export default function BattlePage() {
   const aiThink = useRef(0);
   const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   const startedRef = useRef(false);
-  const timeLimitRef = useRef(120);
+  const timeLimitRef = useRef(BASE_TIME_LIMIT);
 
   const unitsRef = useRef<Unit[]>([]);
-  const playerTowersRef = useRef<[number, number, number]>([900, 900, 900]);
-  const aiTowersRef = useRef<[number, number, number]>([900, 900, 900]);
-  const playerCoreRef = useRef(1800);
-  const aiCoreRef = useRef(1800);
+  const playerTowersRef = useRef<[number, number, number]>([BASE_TOWER_HP, BASE_TOWER_HP, BASE_TOWER_HP]);
+  const aiTowersRef = useRef<[number, number, number]>([BASE_TOWER_HP, BASE_TOWER_HP, BASE_TOWER_HP]);
+  const playerCoreRef = useRef(BASE_CORE_HP);
+  const aiCoreRef = useRef(BASE_CORE_HP);
   const playerTroopCdRef = useRef<Record<string, number>>({});
   const aiTroopCdRef = useRef<Record<string, number>>({});
   const laneOrdersRef = useRef<LaneOrder[]>(['hold', 'hold', 'hold']);
   const aiPersonaRef = useRef<'aggressive' | 'balanced' | 'defensive'>(aiPersona);
   const atkRateRef = useRef<{ player: number; ai: number }>({ player: 1, ai: 1 });
+  const timeLeftRef = useRef(BASE_TIME_LIMIT);
   const battleModeRef = useRef<'normal' | 'pve' | 'campaign'>('normal');
   const stageNameRef = useRef('标准对战');
 
@@ -196,6 +201,7 @@ export default function BattlePage() {
   useEffect(() => { laneOrdersRef.current = laneOrders; }, [laneOrders]);
   useEffect(() => { aiPersonaRef.current = aiPersona; }, [aiPersona]);
   useEffect(() => { atkRateRef.current = atkRate; }, [atkRate]);
+  useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
   useEffect(() => { battleModeRef.current = battleMode; }, [battleMode]);
   useEffect(() => { stageNameRef.current = stageName; }, [stageName]);
 
@@ -268,8 +274,8 @@ export default function BattlePage() {
       const playerPower = unitsRef.current.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk * 1.2, 0);
       const aiPower = unitsRef.current.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk, 0);
       const danger = playerPower - aiPower;
-      const towerRisk = (900 - aiTowersRef.current[lane]) * 0.6;
-      const opportunity = (900 - playerTowersRef.current[lane]) * 0.5;
+      const towerRisk = (BASE_TOWER_HP - aiTowersRef.current[lane]) * 0.7;
+      const opportunity = (BASE_TOWER_HP - playerTowersRef.current[lane]) * 0.6;
       return { lane, playerPower, aiPower, danger, towerRisk, opportunity };
     });
 
@@ -324,7 +330,7 @@ export default function BattlePage() {
       });
 
       aiThink.current += dt;
-      if (aiThink.current >= 1.2) {
+      if (aiThink.current >= 1.0) {
         aiThink.current = 0;
         const action = chooseAiAction();
         if (action) {
@@ -358,8 +364,9 @@ export default function BattlePage() {
           const nearest = enemies.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
           const order = unit.owner === 'player' ? laneOrdersRef.current[unit.lane] ?? 'hold' : 'hold';
           const sideRate = unit.owner === 'player' ? atkRateRef.current.player : atkRateRef.current.ai;
-          const atkFactor = (order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1) * sideRate;
-          const moveFactor = order === 'push' ? 1.18 : order === 'hold' ? 0.92 : 1;
+          const rage = timeLeftRef.current <= 30 ? 1.22 : 1;
+          const atkFactor = (order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1) * sideRate * rage;
+          const moveFactor = (order === 'push' ? 1.18 : order === 'hold' ? 0.92 : 1) * (timeLeftRef.current <= 30 ? 1.08 : 1);
 
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
             if (unit.cooldown <= 0) {
@@ -419,8 +426,8 @@ export default function BattlePage() {
           const x = owner === 'player' ? 12 : 88;
           const enemies = next.filter((u) => u.owner !== owner && u.lane === lane && Math.abs(u.x - x) <= 18 && u.hp > 0);
           if (enemies.length > 0) {
-            enemies[0].hp -= 16;
-            spawnFx(lane, enemies[0].x, '-16', owner === 'player' ? 'cyan' : 'rose');
+            enemies[0].hp -= 10;
+            spawnFx(lane, enemies[0].x, '-10', owner === 'player' ? 'cyan' : 'rose');
           }
         };
 
@@ -453,15 +460,34 @@ export default function BattlePage() {
 
   const result = useMemo(() => {
     if (running) return '';
+    const playerTowerSum = playerTowers.reduce((a, b) => a + b, 0);
+    const aiTowerSum = aiTowers.reduce((a, b) => a + b, 0);
+    const playerScore = playerCore + playerTowerSum * 0.6;
+    const aiScore = aiCore + aiTowerSum * 0.6;
+
     if (playerCore <= 0 && aiCore <= 0) return '平局';
     if (aiCore <= 0) return '你胜利（天下布武推进）';
     if (playerCore <= 0) return '你战败（需调整策略）';
-    return playerCore > aiCore ? '时间结束：你占优' : playerCore < aiCore ? '时间结束：AI 占优' : '时间结束：平局';
-  }, [running, playerCore, aiCore]);
+    if (Math.abs(playerScore - aiScore) <= 18) return '时间结束：险平（按塔血判定）';
+    return playerScore > aiScore ? '时间结束：你占优' : '时间结束：AI 占优';
+  }, [running, playerCore, aiCore, playerTowers, aiTowers]);
 
   useEffect(() => {
     if (running) return;
-    const winner: BattleWriteback['winner'] = aiCore <= 0 ? 'player' : playerCore <= 0 ? 'ai' : playerCore === aiCore ? 'draw' : playerCore > aiCore ? 'player' : 'ai';
+    const playerTowerSum = playerTowers.reduce((a, b) => a + b, 0);
+    const aiTowerSum = aiTowers.reduce((a, b) => a + b, 0);
+    const playerScore = playerCore + playerTowerSum * 0.6;
+    const aiScore = aiCore + aiTowerSum * 0.6;
+    const winner: BattleWriteback['winner'] = aiCore <= 0
+      ? 'player'
+      : playerCore <= 0
+        ? 'ai'
+        : Math.abs(playerScore - aiScore) <= 18
+          ? 'draw'
+          : playerScore > aiScore
+            ? 'player'
+            : 'ai';
+
     const report: BattleWriteback = {
       winner,
       playerCoreHp: Math.round(playerCore),
@@ -474,7 +500,7 @@ export default function BattlePage() {
       at: Date.now(),
       props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null }
     });
-  }, [running, playerCore, aiCore, timeLeft, battleMode, stageName, campaignContext]);
+  }, [running, playerCore, aiCore, playerTowers, aiTowers, timeLeft, battleMode, stageName, campaignContext]);
 
   if (blockedByFlow) {
     return (
