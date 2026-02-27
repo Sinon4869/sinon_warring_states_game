@@ -117,6 +117,8 @@ export default function BattlePage() {
   const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
   const [selectedLane, setSelectedLane] = useState(1);
   const [autoDeploy, setAutoDeploy] = useState(true);
+  const [autoMode, setAutoMode] = useState<'selected' | 'all'>('selected');
+  const [battleSpeed, setBattleSpeed] = useState(0.85);
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
@@ -144,6 +146,8 @@ export default function BattlePage() {
   const stageNameRef = useRef('标准对战');
   const selectedLaneRef = useRef(1);
   const autoDeployRef = useRef(true);
+  const autoModeRef = useRef<'selected' | 'all'>('selected');
+  const battleSpeedRef = useRef(0.85);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -221,6 +225,8 @@ export default function BattlePage() {
   useEffect(() => { stageNameRef.current = stageName; }, [stageName]);
   useEffect(() => { selectedLaneRef.current = selectedLane; }, [selectedLane]);
   useEffect(() => { autoDeployRef.current = autoDeploy; }, [autoDeploy]);
+  useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
+  useEffect(() => { battleSpeedRef.current = battleSpeed; }, [battleSpeed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -335,8 +341,9 @@ export default function BattlePage() {
 
   useEffect(() => {
     if (!running) return;
-    const dt = 0.1;
+    const baseDt = 0.1;
     const timer = setInterval(() => {
+      const dt = baseDt * battleSpeedRef.current;
       setTimeLeft((t) => {
         const nt = Math.max(0, t - dt);
         if (nt <= 0) setRunning(false);
@@ -359,10 +366,15 @@ export default function BattlePage() {
       playerThink.current += dt;
       if (autoDeployRef.current && playerThink.current >= 1.1) {
         playerThink.current = 0;
-        const lane = selectedLaneRef.current;
-        const troop = choosePlayerAutoTroop(lane);
-        if (troop) {
-          deploy('player', troop, lane);
+        if (autoModeRef.current === 'all') {
+          [0, 1, 2].forEach((lane) => {
+            const troop = choosePlayerAutoTroop(lane);
+            if (troop) deploy('player', troop, lane);
+          });
+        } else {
+          const lane = selectedLaneRef.current;
+          const troop = choosePlayerAutoTroop(lane);
+          if (troop) deploy('player', troop, lane);
         }
       }
 
@@ -642,14 +654,28 @@ export default function BattlePage() {
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-zinc-300">单手操作模式（先选一路，再点兵种）</p>
-          <button
-            onClick={() => setAutoDeploy((v) => !v)}
-            className={`chip-btn text-xs ${autoDeploy ? 'border-emerald-400/70 text-emerald-300' : ''}`}
-          >
-            自动投放：{autoDeploy ? '开' : '关'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setBattleSpeed((v) => (v === 0.7 ? 0.85 : v === 0.85 ? 1 : 0.7))}
+              className="chip-btn text-xs"
+            >
+              速度：{battleSpeed.toFixed(2)}x
+            </button>
+            <button
+              onClick={() => setAutoMode((m) => (m === 'selected' ? 'all' : 'selected'))}
+              className={`chip-btn text-xs ${autoMode === 'all' ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+            >
+              自动范围：{autoMode === 'all' ? '三路' : '当前路'}
+            </button>
+            <button
+              onClick={() => setAutoDeploy((v) => !v)}
+              className={`chip-btn text-xs ${autoDeploy ? 'border-emerald-400/70 text-emerald-300' : ''}`}
+            >
+              自动投放：{autoDeploy ? '开' : '关'}
+            </button>
+          </div>
         </div>
         <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
           <div className="mb-2 flex gap-2">
@@ -678,7 +704,7 @@ export default function BattlePage() {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">当前指挥：第{selectedLane + 1}路 / {laneOrders[selectedLane] === 'hold' ? '固守' : laneOrders[selectedLane] === 'push' ? '推进' : '强攻'}</p>
+          <p className="mt-2 text-xs text-zinc-400">当前指挥：第{selectedLane + 1}路 / {laneOrders[selectedLane] === 'hold' ? '固守' : laneOrders[selectedLane] === 'push' ? '推进' : '强攻'} · 自动{autoMode === 'all' ? '三路' : '当前路'}</p>
         </div>
 
         <p className="mb-2 text-sm text-zinc-300">兵种调度（点击即投放到当前路线）</p>
