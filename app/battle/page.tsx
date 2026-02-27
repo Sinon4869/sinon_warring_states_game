@@ -21,6 +21,9 @@ type Troop = {
   speed: number;
   range: number;
   cdMs: number;
+  critRate: number;
+  critMult: number;
+  fxTag: 'slash' | 'pierce' | 'charge' | 'arrow';
 };
 
 type Unit = {
@@ -63,10 +66,10 @@ const BASE_CORE_HP = 1300;
 const BASE_TIME_LIMIT = 120;
 
 const TROOPS: Troop[] = [
-  { id: 'infantry', name: '步兵', hp: 120, atk: 20, speed: 10.5, range: 4, cdMs: 1900 },
-  { id: 'spear', name: '枪兵', hp: 100, atk: 23, speed: 11.5, range: 5, cdMs: 2200 },
-  { id: 'cavalry', name: '骑兵', hp: 150, atk: 28, speed: 14.5, range: 5, cdMs: 3000 },
-  { id: 'archer', name: '弓兵', hp: 80, atk: 22, speed: 8.5, range: 12, cdMs: 2500 }
+  { id: 'infantry', name: '步兵', hp: 120, atk: 20, speed: 10.5, range: 4, cdMs: 1900, critRate: 0.1, critMult: 1.5, fxTag: 'slash' },
+  { id: 'spear', name: '枪兵', hp: 100, atk: 23, speed: 11.5, range: 5, cdMs: 2200, critRate: 0.14, critMult: 1.55, fxTag: 'pierce' },
+  { id: 'cavalry', name: '骑兵', hp: 150, atk: 28, speed: 14.5, range: 5, cdMs: 3000, critRate: 0.2, critMult: 1.7, fxTag: 'charge' },
+  { id: 'archer', name: '弓兵', hp: 80, atk: 22, speed: 8.5, range: 12, cdMs: 2500, critRate: 0.18, critMult: 1.6, fxTag: 'arrow' }
 ];
 
 const TROOP_ART: Record<string, string> = {
@@ -75,6 +78,17 @@ const TROOP_ART: Record<string, string> = {
   cavalry: '/assets/units/cavalry.svg',
   archer: '/assets/units/archer.svg'
 };
+
+function troopById(id: string) {
+  return TROOPS.find((t) => t.id === id) ?? TROOPS[0];
+}
+
+function rollDamage(unit: Unit, atkFactor: number) {
+  const troop = troopById(unit.troopId);
+  const crit = Math.random() < troop.critRate;
+  const dmg = Math.round(unit.atk * atkFactor * (crit ? troop.critMult : 1));
+  return { dmg, crit, fxTag: troop.fxTag };
+}
 
 function makeUnit(troop: Troop, owner: Side, lane: number): Unit {
   return {
@@ -165,6 +179,7 @@ export default function BattlePage() {
   const fxPeakRef = useRef(0);
   const deployStatsRef = useRef<Record<string, number>>({ infantry: 0, spear: 0, cavalry: 0, archer: 0 });
   const lanePressureRef = useRef<[number, number, number]>([0, 0, 0]);
+  const specialEventRef = useRef<{ playerLastStand: boolean; aiLastStand: boolean }>({ playerLastStand: false, aiLastStand: false });
   const startedRef = useRef(false);
   const timeLimitRef = useRef(BASE_TIME_LIMIT);
 
@@ -479,9 +494,13 @@ export default function BattlePage() {
 
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
             if (unit.cooldown <= 0) {
-              const damage = Math.round(unit.atk * atkFactor);
-              nearest.hp -= damage;
-              spawnFx(unit.lane, nearest.x, `-${damage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              const hit = rollDamage(unit, atkFactor);
+              nearest.hp -= hit.dmg;
+              const fxPrefix = hit.fxTag === 'arrow' ? '🏹' : hit.fxTag === 'charge' ? '⚡' : hit.fxTag === 'pierce' ? '✦' : '✧';
+              spawnFx(unit.lane, nearest.x, `${fxPrefix}-${hit.dmg}${hit.crit ? ' 暴击!' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              if (hit.crit) {
+                spawnFx(unit.lane, nearest.x + (unit.owner === 'player' ? 1 : -1) * 1.4, 'CRIT', unit.owner === 'player' ? 'cyan' : 'rose');
+              }
               unit.cooldown = order === 'burst' ? 0.95 : 0.8;
             }
             continue;
@@ -491,10 +510,11 @@ export default function BattlePage() {
           const towerX = unit.owner === 'player' ? 88 : 12;
           if (targetTower[unit.lane] > 0 && Math.abs(unit.x - towerX) <= unit.range) {
             if (unit.cooldown <= 0) {
-              const towerDamage = Math.round(unit.atk * sideRate);
+              const hit = rollDamage(unit, sideRate);
+              const towerDamage = hit.dmg;
               targetTower[unit.lane] -= towerDamage;
               if (unit.owner === 'player') lanePressureRef.current[unit.lane] += towerDamage;
-              spawnFx(unit.lane, towerX, `塔-${towerDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              spawnFx(unit.lane, towerX, `塔-${towerDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
               track({
                 name: 'battle_tower_hit',
                 at: Date.now(),
@@ -508,7 +528,8 @@ export default function BattlePage() {
           const coreX = unit.owner === 'player' ? 96 : 4;
           if (Math.abs(unit.x - coreX) <= unit.range) {
             if (unit.cooldown <= 0) {
-              const coreDamage = Math.round(unit.atk * sideRate);
+              const hit = rollDamage(unit, sideRate);
+              const coreDamage = hit.dmg;
               if (unit.owner === 'player') {
                 aCore -= coreDamage;
                 lanePressureRef.current[unit.lane] += coreDamage * 1.2;
@@ -517,8 +538,8 @@ export default function BattlePage() {
                 pCore -= coreDamage;
                 setCoreFlash('player');
               }
-              setShake(10);
-              spawnFx(unit.lane, coreX, `本阵-${coreDamage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              setShake(hit.crit ? 14 : 10);
+              spawnFx(unit.lane, coreX, `本阵-${coreDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
               track({
                 name: 'battle_core_hit',
                 at: Date.now(),
@@ -551,6 +572,16 @@ export default function BattlePage() {
 
         pCore = Math.max(0, pCore);
         aCore = Math.max(0, aCore);
+
+        if (!specialEventRef.current.playerLastStand && pCore > 0 && pCore <= BASE_CORE_HP * 0.35) {
+          specialEventRef.current.playerLastStand = true;
+          spawnFx(1, 12, '我方背水一战!', 'cyan');
+        }
+        if (!specialEventRef.current.aiLastStand && aCore > 0 && aCore <= BASE_CORE_HP * 0.35) {
+          specialEventRef.current.aiLastStand = true;
+          spawnFx(1, 88, '敌方绝地反扑!', 'rose');
+        }
+
         playerTowersRef.current = pT as [number, number, number];
         aiTowersRef.current = aT as [number, number, number];
         playerCoreRef.current = pCore;
@@ -810,7 +841,7 @@ export default function BattlePage() {
                   <img src={TROOP_ART[t.id] ?? '/assets/units/fallback.svg'} alt={t.name} className="h-9 w-9 rounded border border-zinc-600" />
                   <div>
                     <p className="font-medium">{t.name}</p>
-                    <p className="text-xs text-zinc-400">CD {Math.ceil(t.cdMs / 1000)}s · HP {t.hp} · ATK {t.atk}</p>
+                    <p className="text-xs text-zinc-400">CD {Math.ceil(t.cdMs / 1000)}s · HP {t.hp} · ATK {t.atk} · 暴击{Math.round(t.critRate * 100)}%</p>
                   </div>
                 </div>
                 <p className="mt-1 text-[11px] text-cyan-300">{cd > 0 ? `冷却中 ${Math.ceil(cd / 1000)}s` : '可用'}</p>
