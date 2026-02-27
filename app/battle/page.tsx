@@ -32,6 +32,8 @@ type Unit = {
   cooldown: number;
 };
 
+type LaneOrder = 'hold' | 'push' | 'burst';
+
 type CombatFx = {
   id: string;
   lane: number;
@@ -80,6 +82,7 @@ export default function BattlePage() {
 
   const [playerTroopCd, setPlayerTroopCd] = useState<Record<string, number>>({});
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
+  const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [shake, setShake] = useState(0);
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
@@ -108,10 +111,19 @@ export default function BattlePage() {
 
   const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
     if (!running) return;
+    const sameLane = units.filter((u) => u.owner === owner && u.lane === lane).length;
+    const laneCap = 8;
+    if (sameLane >= laneCap) {
+      if (owner === 'player') spawnFx(lane, 26, '该路已满', 'rose');
+      return;
+    }
+
     if (owner === 'player') {
       const left = playerTroopCd[troop.id] ?? 0;
       if (left > 0) return;
-      setPlayerTroopCd((s) => ({ ...s, [troop.id]: troop.cdMs }));
+      const order = laneOrders[lane] ?? 'hold';
+      const cdFactor = order === 'burst' ? 1.2 : order === 'push' ? 1.1 : 1;
+      setPlayerTroopCd((s) => ({ ...s, [troop.id]: Math.round(troop.cdMs * cdFactor) }));
     } else {
       const left = aiTroopCd[troop.id] ?? 0;
       if (left > 0) return;
@@ -120,7 +132,7 @@ export default function BattlePage() {
     setUnits((prev) => [...prev, makeUnit(troop, owner, lane)]);
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
     track({ name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy', at: Date.now(), props: { troop: troop.id, lane } });
-  }, [running, playerTroopCd, aiTroopCd, spawnFx]);
+  }, [running, units, playerTroopCd, aiTroopCd, spawnFx, laneOrders]);
 
   useEffect(() => {
     if (!coreFlash) return;
@@ -175,12 +187,16 @@ export default function BattlePage() {
         for (const unit of next) {
           const enemies = next.filter((x) => x.owner !== unit.owner && x.lane === unit.lane && x.hp > 0);
           const nearest = enemies.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
+          const order = unit.owner === 'player' ? laneOrders[unit.lane] ?? 'hold' : 'hold';
+          const atkFactor = order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1;
+          const moveFactor = order === 'push' ? 1.18 : order === 'hold' ? 0.92 : 1;
 
           if (nearest && Math.abs(nearest.x - unit.x) <= unit.range) {
             if (unit.cooldown <= 0) {
-              nearest.hp -= unit.atk;
-              spawnFx(unit.lane, nearest.x, `-${unit.atk}`, unit.owner === 'player' ? 'cyan' : 'rose');
-              unit.cooldown = 0.8;
+              const damage = Math.round(unit.atk * atkFactor);
+              nearest.hp -= damage;
+              spawnFx(unit.lane, nearest.x, `-${damage}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              unit.cooldown = order === 'burst' ? 0.95 : 0.8;
             }
             continue;
           }
@@ -213,7 +229,7 @@ export default function BattlePage() {
             continue;
           }
 
-          unit.x += (unit.owner === 'player' ? 1 : -1) * unit.speed * dt;
+          unit.x += (unit.owner === 'player' ? 1 : -1) * unit.speed * moveFactor * dt;
         }
 
         const towerShoot = (owner: Side, lane: number, towerHp: number) => {
@@ -247,7 +263,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx]);
+  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -349,6 +365,34 @@ export default function BattlePage() {
       </section>
 
       <section className="panel p-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4">
+        <p className="mb-2 text-sm text-zinc-300">线路战术指令（无卡）</p>
+        <div className="mb-3 grid gap-2 md:grid-cols-3">
+          {[0, 1, 2].map((lane) => {
+            const order = laneOrders[lane];
+            const playerCount = units.filter((u) => u.owner === 'player' && u.lane === lane).length;
+            return (
+              <div key={`order-${lane}`} className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                <p className="text-xs text-zinc-400">第{lane + 1}路 · 驻军 {playerCount}/8</p>
+                <div className="mt-2 grid grid-cols-3 gap-1">
+                  {([
+                    ['hold', '固守'],
+                    ['push', '推进'],
+                    ['burst', '强攻']
+                  ] as const).map(([k, label]) => (
+                    <button
+                      key={`${lane}-${k}`}
+                      onClick={() => setLaneOrders((prev) => prev.map((v, i) => (i === lane ? k : v)) as LaneOrder[])}
+                      className={`chip-btn px-1 py-1 text-[11px] ${order === k ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         <p className="mb-2 text-sm text-zinc-300">兵种调度（无卡）</p>
         <div className="grid gap-2 md:grid-cols-4">
           {TROOPS.map((t) => {
