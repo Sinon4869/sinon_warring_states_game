@@ -16,33 +16,13 @@ export default function HomePage() {
           <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">以战国时代为舞台，调控人口、经济、军备与外交，在多势力 AI 对抗中完成统一。</p>
           <div className="mt-6 flex flex-wrap gap-2 md:gap-3">
             <Button asChild size="lg">
-              <Link href="/campaign">开始征程</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/battle">实时对战</Link>
+              <Link href="/campaign">开始征程（主流程）</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link href="/map">世界地图</Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/balance">数值面板</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/tutorial">新手章节</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/pve">关卡战役</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/multiplayer">同步实验</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/ops">运营面板</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/review">复盘中心</Link>
-            </Button>
           </div>
+          <p className="mt-3 text-xs text-zinc-400">说明：实时战斗由战役/地图冲突触发，避免流程断裂。辅助页面在战役内可进入。</p>
         </section>
 
         <section className="mt-8 grid gap-4 md:grid-cols-3">

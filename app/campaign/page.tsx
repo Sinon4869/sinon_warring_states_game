@@ -23,6 +23,16 @@ type GameState = {
   logs: string[];
 };
 
+type BattleContext = {
+  id: string;
+  region: string;
+  terrain: 'plain' | 'mountain' | 'river';
+  enemyPower: number;
+  supply: number;
+  objective: string;
+  recommended: 'expand' | 'fortify' | 'rest';
+};
+
 const INIT: GameState = {
   turn: 1,
   year: 1560,
@@ -53,11 +63,30 @@ function clamp(v: number, min = 0, max = 9999) {
   return Math.max(min, Math.min(max, v));
 }
 
+function createConflict(turn: number): BattleContext {
+  const regions = ['并州前线', '冀州走廊', '荆州水道', '益州山口', '徐州平原'];
+  const terrains: BattleContext['terrain'][] = ['plain', 'mountain', 'river'];
+  const terrain = terrains[Math.floor(Math.random() * terrains.length)];
+  const objectives = ['击破前线据点', '守住补给线', '夺取桥头堡'];
+  const recommended: BattleContext['recommended'][] = ['expand', 'fortify', 'rest'];
+  return {
+    id: `ctx-${Date.now()}-${turn}`,
+    region: regions[Math.floor(Math.random() * regions.length)],
+    terrain,
+    enemyPower: Math.floor(80 + Math.random() * 90),
+    supply: Math.floor(45 + Math.random() * 55),
+    objective: objectives[Math.floor(Math.random() * objectives.length)],
+    recommended: recommended[Math.floor(Math.random() * recommended.length)]
+  };
+}
+
 export default function CampaignPage() {
   const [state, setState] = useState<GameState>(INIT);
   const [actionsLeft, setActionsLeft] = useState(3);
   const [result, setResult] = useState('');
   const [slot, setSlot] = useState<'slot1' | 'slot2' | 'slot3'>('slot1');
+  const [pendingBattle, setPendingBattle] = useState<BattleContext | null>(null);
+  const [postBattleDecision, setPostBattleDecision] = useState<BattleContext['recommended'] | null>(null);
 
   const status = useMemo(() => {
     if (state.land >= 10) return '🏆 天下布武达成';
@@ -73,12 +102,28 @@ export default function CampaignPage() {
   }, [state.food, state.order, state.army]);
 
   useEffect(() => {
+    const ctxRaw = localStorage.getItem('sws-battle-context');
+    if (ctxRaw) {
+      try {
+        setPendingBattle(JSON.parse(ctxRaw) as BattleContext);
+      } catch {
+        localStorage.removeItem('sws-battle-context');
+      }
+    }
+
     const raw = localStorage.getItem('sws-battle-report');
     if (!raw) return;
     try {
       const report = JSON.parse(raw) as BattleWriteback;
       setState((prev) => applyBattleWriteback(prev, report));
       setResult(`已回写战报：${report.winner}`);
+      const lastCtx = localStorage.getItem('sws-battle-context');
+      if (lastCtx) {
+        const ctx = JSON.parse(lastCtx) as BattleContext;
+        setPostBattleDecision(ctx.recommended);
+      }
+      setPendingBattle(null);
+      localStorage.removeItem('sws-battle-context');
       localStorage.removeItem('sws-battle-report');
     } catch {
       localStorage.removeItem('sws-battle-report');
@@ -114,7 +159,7 @@ export default function CampaignPage() {
   }
 
   function endTurn() {
-    if (status !== '进行中') return;
+    if (status !== '进行中' || postBattleDecision !== null) return;
 
     setState((prev) => {
       const next = { ...prev };
@@ -175,6 +220,12 @@ export default function CampaignPage() {
     });
 
     setActionsLeft(3);
+    if (!pendingBattle && Math.random() < 0.55) {
+      const conflict = createConflict(state.turn + 1);
+      setPendingBattle(conflict);
+      localStorage.setItem('sws-battle-context', JSON.stringify(conflict));
+      setResult(`边境告急：${conflict.region}（${conflict.objective}）`);
+    }
     track({ name: 'campaign_end_turn', at: Date.now(), props: { turn: state.turn } });
   }
 
@@ -203,7 +254,23 @@ export default function CampaignPage() {
   function reset() {
     setState(INIT);
     setActionsLeft(3);
+    setPendingBattle(null);
+    setPostBattleDecision(null);
+    localStorage.removeItem('sws-battle-context');
     setResult('已重开');
+  }
+
+  function applyPostBattlePlan(plan: BattleContext['recommended']) {
+    setState((prev) => {
+      if (plan === 'expand') {
+        return { ...prev, army: clamp(prev.army + 12), order: clamp(prev.order - 3, 0, 100), logs: [`战后决策：乘胜扩张`, ...prev.logs].slice(0, 12) };
+      }
+      if (plan === 'fortify') {
+        return { ...prev, order: clamp(prev.order + 8, 0, 100), gold: clamp(prev.gold - 12), logs: [`战后决策：加固防线`, ...prev.logs].slice(0, 12) };
+      }
+      return { ...prev, pop: clamp(prev.pop + 4), food: clamp(prev.food + 12), logs: [`战后决策：休整补给`, ...prev.logs].slice(0, 12) };
+    });
+    setPostBattleDecision(null);
   }
 
   return (
@@ -215,7 +282,11 @@ export default function CampaignPage() {
           <p className="text-xs text-zinc-400">回合 {state.turn} · 年份 {state.year} · 状态：{status}</p>
         </div>
         <div className="flex shrink-0 gap-3 text-sm">
-          <Link href="/battle?from=campaign" className="text-cyan-300 hover:underline">发起战役</Link>
+          {pendingBattle ? (
+            <Link href="/battle?from=campaign&context=1" className="text-cyan-300 hover:underline">处理战役冲突</Link>
+          ) : (
+            <span className="text-zinc-500">暂无战役冲突</span>
+          )}
           <Link href="/map" className="text-cyan-300 hover:underline">世界地图</Link>
           <Link href="/" className="text-cyan-300 hover:underline">首页</Link>
         </div>
@@ -259,7 +330,7 @@ export default function CampaignPage() {
             <option value="slot2">存档槽 2</option>
             <option value="slot3">存档槽 3</option>
           </select>
-          <button onClick={endTurn} className="chip-btn border-emerald-500/60 hover:bg-emerald-500/20">
+          <button onClick={endTurn} disabled={postBattleDecision !== null} className="chip-btn border-emerald-500/60 hover:bg-emerald-500/20 disabled:opacity-50">
             回合结算
           </button>
           <button onClick={save} className="chip-btn border-zinc-500 hover:bg-zinc-700/30">存档</button>
@@ -268,6 +339,26 @@ export default function CampaignPage() {
           {result && <p className="self-center text-xs text-cyan-300">{result}</p>}
         </div>
       </section>
+
+      {pendingBattle && (
+        <section className="panel p-4">
+          <h2 className="mb-1 text-base font-semibold">战役冲突待处理</h2>
+          <p className="text-sm text-zinc-300">区域：{pendingBattle.region} · 地形：{pendingBattle.terrain} · 目标：{pendingBattle.objective}</p>
+          <p className="text-xs text-zinc-400">敌情强度：{pendingBattle.enemyPower} · 补给指数：{pendingBattle.supply} · 推荐：{pendingBattle.recommended}</p>
+          <Link href="/battle?from=campaign&context=1" className="mt-2 inline-block text-cyan-300 hover:underline">进入战斗处理</Link>
+        </section>
+      )}
+
+      {postBattleDecision && (
+        <section className="panel p-4">
+          <h2 className="mb-2 text-base font-semibold">战后决策（必须选择）</h2>
+          <div className="flex flex-wrap gap-2">
+            <button className="chip-btn" onClick={() => applyPostBattlePlan('expand')}>扩张追击</button>
+            <button className="chip-btn" onClick={() => applyPostBattlePlan('fortify')}>巩固防线</button>
+            <button className="chip-btn" onClick={() => applyPostBattlePlan('rest')}>休整补给</button>
+          </div>
+        </section>
+      )}
 
       <section className="panel p-4">
         <h2 className="mb-1 text-base font-semibold">回合日志</h2>

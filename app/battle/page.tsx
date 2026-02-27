@@ -46,6 +46,16 @@ type CombatFx = {
   color: 'cyan' | 'rose';
 };
 
+type BattleContext = {
+  id: string;
+  region: string;
+  terrain: 'plain' | 'mountain' | 'river';
+  enemyPower: number;
+  supply: number;
+  objective: string;
+  recommended: 'expand' | 'fortify' | 'rest';
+};
+
 const TROOPS: Troop[] = [
   { id: 'infantry', name: '步兵', hp: 120, atk: 16, speed: 10, range: 4, cdMs: 2200 },
   { id: 'spear', name: '枪兵', hp: 95, atk: 19, speed: 11, range: 5, cdMs: 2600 },
@@ -73,8 +83,10 @@ export default function BattlePage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [timeLeft, setTimeLeft] = useState(120);
   const [running, setRunning] = useState(true);
-  const [battleMode, setBattleMode] = useState<'normal' | 'pve'>('normal');
+  const [battleMode, setBattleMode] = useState<'normal' | 'pve' | 'campaign'>('normal');
   const [stageName, setStageName] = useState<string>('标准对战');
+  const [campaignContext, setCampaignContext] = useState<BattleContext | null>(null);
+  const [blockedByFlow, setBlockedByFlow] = useState(false);
   const [atkRate, setAtkRate] = useState<{ player: number; ai: number }>({ player: 1, ai: 1 });
   const [aiPersona, setAiPersona] = useState<'aggressive' | 'balanced' | 'defensive'>(() => {
     const personas: Array<'aggressive' | 'balanced' | 'defensive'> = ['aggressive', 'balanced', 'defensive'];
@@ -111,13 +123,14 @@ export default function BattlePage() {
   const laneOrdersRef = useRef<LaneOrder[]>(['hold', 'hold', 'hold']);
   const aiPersonaRef = useRef<'aggressive' | 'balanced' | 'defensive'>(aiPersona);
   const atkRateRef = useRef<{ player: number; ai: number }>({ player: 1, ai: 1 });
-  const battleModeRef = useRef<'normal' | 'pve'>('normal');
+  const battleModeRef = useRef<'normal' | 'pve' | 'campaign'>('normal');
   const stageNameRef = useRef('标准对战');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    setFromCampaign(params.get('from') === 'campaign');
+    const from = params.get('from') === 'campaign';
+    setFromCampaign(from);
 
     const mode = params.get('mode');
     const stage = getPveStage(params.get('stage'));
@@ -132,6 +145,27 @@ export default function BattlePage() {
       setAtkRate({ player: stage.playerAtkRate, ai: stage.aiAtkRate });
       battleModeRef.current = 'pve';
       stageNameRef.current = `${stage.id.toUpperCase()} ${stage.name}`;
+    }
+
+    if (from && params.get('context') === '1') {
+      const raw = localStorage.getItem('sws-battle-context');
+      if (!raw) {
+        setBlockedByFlow(true);
+      } else {
+        try {
+          const ctx = JSON.parse(raw) as BattleContext;
+          setCampaignContext(ctx);
+          setBattleMode('campaign');
+          battleModeRef.current = 'campaign';
+          setStageName(`${ctx.region} · ${ctx.objective}`);
+          stageNameRef.current = `${ctx.region} · ${ctx.objective}`;
+          const terrainRate = ctx.terrain === 'mountain' ? { player: 0.95, ai: 1.08 } : ctx.terrain === 'river' ? { player: 1.02, ai: 1.05 } : { player: 1, ai: 1 };
+          const supplyRate = ctx.supply >= 70 ? 1.08 : ctx.supply <= 45 ? 0.92 : 1;
+          setAtkRate({ player: Number((terrainRate.player * supplyRate).toFixed(2)), ai: terrainRate.ai });
+        } catch {
+          setBlockedByFlow(true);
+        }
+      }
     }
 
     if (!startedRef.current) {
@@ -430,9 +464,21 @@ export default function BattlePage() {
     track({
       name: 'battle_result',
       at: Date.now(),
-      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION }
+      props: { matchId: matchIdRef.current, winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null }
     });
-  }, [running, playerCore, aiCore, timeLeft, battleMode, stageName]);
+  }, [running, playerCore, aiCore, timeLeft, battleMode, stageName, campaignContext]);
+
+  if (blockedByFlow) {
+    return (
+      <main className="app-shell text-zinc-100">
+        <section className="panel p-4">
+          <h1 className="text-lg font-semibold">战斗流程已拦截</h1>
+          <p className="mt-2 text-sm text-zinc-400">当前没有待处理的战役冲突。请先在战役页推进回合并触发边境冲突。</p>
+          <Link href="/campaign" className="mt-3 inline-block text-cyan-300 hover:underline">返回战役</Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main
