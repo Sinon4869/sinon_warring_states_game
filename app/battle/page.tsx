@@ -143,9 +143,10 @@ export default function BattlePage() {
   const [aiTroopCd, setAiTroopCd] = useState<Record<string, number>>({});
   const [laneOrders, setLaneOrders] = useState<LaneOrder[]>(['hold', 'hold', 'hold']);
   const [selectedLane, setSelectedLane] = useState(1);
+  const [selectedTroop, setSelectedTroop] = useState<string>('infantry');
   const [autoDeploy, setAutoDeploy] = useState(true);
-  const [autoMode, setAutoMode] = useState<'selected' | 'all'>('selected');
-  const [battleSpeed, setBattleSpeed] = useState(0.85);
+  const [autoMode, setAutoMode] = useState<'selected' | 'all'>('all');
+  const [battleSpeed, setBattleSpeed] = useState(0.7);
   const [effects, setEffects] = useState<CombatFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
@@ -155,6 +156,7 @@ export default function BattlePage() {
 
   const aiThink = useRef(0);
   const playerThink = useRef(0);
+  const laneThinkRef = useRef<[number, number, number]>([0, 0, 0]);
   const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   const tickLastAtRef = useRef<number | null>(null);
   const tickMsSumRef = useRef(0);
@@ -415,14 +417,21 @@ export default function BattlePage() {
       });
 
       playerThink.current += dt;
-      if (autoDeployRef.current && playerThink.current >= 1.1) {
-        playerThink.current = 0;
+      if (autoDeployRef.current) {
         if (autoModeRef.current === 'all') {
+          const laneTimers = laneThinkRef.current;
           [0, 1, 2].forEach((lane) => {
-            const troop = choosePlayerAutoTroop(lane);
-            if (troop) deploy('player', troop, lane);
+            laneTimers[lane] += dt;
+            const interval = lane === 1 ? 0.95 : 1.1;
+            if (laneTimers[lane] >= interval) {
+              laneTimers[lane] = 0;
+              const troop = choosePlayerAutoTroop(lane);
+              if (troop) deploy('player', troop, lane);
+            }
           });
-        } else {
+          laneThinkRef.current = laneTimers;
+        } else if (playerThink.current >= 1.0) {
+          playerThink.current = 0;
           const lane = selectedLaneRef.current;
           const troop = choosePlayerAutoTroop(lane);
           if (troop) deploy('player', troop, lane);
@@ -653,7 +662,18 @@ export default function BattlePage() {
             const total = Math.max(1, playerPower + aiPower);
             const playerPct = (playerPower / total) * 100;
             return (
-              <div key={lane} className="relative h-24 overflow-hidden rounded border border-zinc-700 bg-gradient-to-r from-zinc-950/90 via-slate-900/80 to-zinc-950/90">
+              <button
+                key={lane}
+                type="button"
+                onClick={() => {
+                  setSelectedLane(lane);
+                  if (window.innerWidth < 768) {
+                    const troop = TROOPS.find((t) => t.id === selectedTroop);
+                    if (troop) deploy('player', troop, lane);
+                  }
+                }}
+                className={`relative h-24 w-full overflow-hidden rounded border bg-gradient-to-r from-zinc-950/90 via-slate-900/80 to-zinc-950/90 text-left ${selectedLane === lane ? 'border-cyan-400/80' : 'border-zinc-700'}`}
+              >
                 <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800">
                   <div className="h-full bg-cyan-400/70" style={{ width: `${playerPct}%` }} />
                 </div>
@@ -703,7 +723,7 @@ export default function BattlePage() {
                       </motion.div>
                     ))}
                 </AnimatePresence>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -810,29 +830,34 @@ export default function BattlePage() {
       </section>
 
       <section className="fixed inset-x-0 bottom-0 z-20 border-t border-cyan-500/30 bg-zinc-950/90 px-3 py-2 backdrop-blur md:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
-        <p className="mb-1 text-[11px] text-zinc-400">移动端快操：先选路线，再点兵种</p>
+        <p className="mb-1 text-[11px] text-zinc-400">竖屏快操：选兵种 → 轻点上方路线（自动投放可接管）</p>
+        <div className="mb-2 grid grid-cols-4 gap-2">
+          {TROOPS.map((t) => (
+            <button
+              key={`quick-troop-${t.id}`}
+              onClick={() => setSelectedTroop(t.id)}
+              className={`chip-btn text-xs ${selectedTroop === t.id ? 'border-cyan-400/70 text-cyan-300' : ''}`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
         <div className="mb-2 grid grid-cols-3 gap-2">
           {[0, 1, 2].map((lane) => (
             <button
               key={`quick-lane-${lane}`}
-              onClick={() => setSelectedLane(lane)}
+              onClick={() => {
+                setSelectedLane(lane);
+                const troop = TROOPS.find((t) => t.id === selectedTroop);
+                if (troop) deploy('player', troop, lane);
+              }}
               className={`chip-btn text-xs ${selectedLane === lane ? 'border-cyan-400/70 text-cyan-300' : ''}`}
             >
               第{lane + 1}路
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-4 gap-2">
-          {TROOPS.map((t) => (
-            <button
-              key={`quick-troop-${t.id}`}
-              onClick={() => deploy('player', t, selectedLane)}
-              className="chip-btn border-cyan-400/60 text-xs"
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
+        <p className="text-[11px] text-zinc-500">当前兵种：{TROOPS.find((t) => t.id === selectedTroop)?.name ?? '步兵'} · 当前路线：第{selectedLane + 1}路</p>
       </section>
     </main>
   );
