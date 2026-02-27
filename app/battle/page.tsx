@@ -98,6 +98,21 @@ export default function BattlePage() {
 
   const aiThink = useRef(0);
   const matchIdRef = useRef(`m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const startedRef = useRef(false);
+  const timeLimitRef = useRef(120);
+
+  const unitsRef = useRef<Unit[]>([]);
+  const playerTowersRef = useRef<[number, number, number]>([900, 900, 900]);
+  const aiTowersRef = useRef<[number, number, number]>([900, 900, 900]);
+  const playerCoreRef = useRef(1800);
+  const aiCoreRef = useRef(1800);
+  const playerTroopCdRef = useRef<Record<string, number>>({});
+  const aiTroopCdRef = useRef<Record<string, number>>({});
+  const laneOrdersRef = useRef<LaneOrder[]>(['hold', 'hold', 'hold']);
+  const aiPersonaRef = useRef<'aggressive' | 'balanced' | 'defensive'>(aiPersona);
+  const atkRateRef = useRef<{ player: number; ai: number }>({ player: 1, ai: 1 });
+  const battleModeRef = useRef<'normal' | 'pve'>('normal');
+  const stageNameRef = useRef('标准对战');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -111,20 +126,36 @@ export default function BattlePage() {
       setStageName(`${stage.id.toUpperCase()} ${stage.name}`);
       setAiPersona(stage.aiPersona);
       setTimeLeft(stage.timeLimit);
+      timeLimitRef.current = stage.timeLimit;
       setPlayerCore(stage.playerCore);
       setAiCore(stage.aiCore);
       setAtkRate({ player: stage.playerAtkRate, ai: stage.aiAtkRate });
+      battleModeRef.current = 'pve';
+      stageNameRef.current = `${stage.id.toUpperCase()} ${stage.name}`;
+    }
+
+    if (!startedRef.current) {
+      startedRef.current = true;
+      track({
+        name: 'battle_start',
+        at: Date.now(),
+        props: { matchId: matchIdRef.current, mode: battleModeRef.current, stage: stageNameRef.current, version: APP_VERSION }
+      });
     }
   }, []);
 
-  useEffect(() => {
-    track({
-      name: 'battle_start',
-      at: Date.now(),
-      props: { matchId: matchIdRef.current, mode: battleMode, version: APP_VERSION }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { unitsRef.current = units; }, [units]);
+  useEffect(() => { playerTowersRef.current = playerTowers as [number, number, number]; }, [playerTowers]);
+  useEffect(() => { aiTowersRef.current = aiTowers as [number, number, number]; }, [aiTowers]);
+  useEffect(() => { playerCoreRef.current = playerCore; }, [playerCore]);
+  useEffect(() => { aiCoreRef.current = aiCore; }, [aiCore]);
+  useEffect(() => { playerTroopCdRef.current = playerTroopCd; }, [playerTroopCd]);
+  useEffect(() => { aiTroopCdRef.current = aiTroopCd; }, [aiTroopCd]);
+  useEffect(() => { laneOrdersRef.current = laneOrders; }, [laneOrders]);
+  useEffect(() => { aiPersonaRef.current = aiPersona; }, [aiPersona]);
+  useEffect(() => { atkRateRef.current = atkRate; }, [atkRate]);
+  useEffect(() => { battleModeRef.current = battleMode; }, [battleMode]);
+  useEffect(() => { stageNameRef.current = stageName; }, [stageName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +187,7 @@ export default function BattlePage() {
 
   const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
     if (!running) return;
-    const sameLane = units.filter((u) => u.owner === owner && u.lane === lane).length;
+    const sameLane = unitsRef.current.filter((u) => u.owner === owner && u.lane === lane).length;
     const laneCap = 8;
     if (sameLane >= laneCap) {
       if (owner === 'player') spawnFx(lane, 26, '该路已满', 'rose');
@@ -164,54 +195,62 @@ export default function BattlePage() {
     }
 
     if (owner === 'player') {
-      const left = playerTroopCd[troop.id] ?? 0;
+      const left = playerTroopCdRef.current[troop.id] ?? 0;
       if (left > 0) return;
-      const order = laneOrders[lane] ?? 'hold';
+      const order = laneOrdersRef.current[lane] ?? 'hold';
       const cdFactor = order === 'burst' ? 1.2 : order === 'push' ? 1.1 : 1;
-      setPlayerTroopCd((s) => ({ ...s, [troop.id]: Math.round(troop.cdMs * cdFactor) }));
+      const nextCd = { ...playerTroopCdRef.current, [troop.id]: Math.round(troop.cdMs * cdFactor) };
+      playerTroopCdRef.current = nextCd;
+      setPlayerTroopCd(nextCd);
     } else {
-      const left = aiTroopCd[troop.id] ?? 0;
+      const left = aiTroopCdRef.current[troop.id] ?? 0;
       if (left > 0) return;
-      setAiTroopCd((s) => ({ ...s, [troop.id]: troop.cdMs }));
+      const nextCd = { ...aiTroopCdRef.current, [troop.id]: troop.cdMs };
+      aiTroopCdRef.current = nextCd;
+      setAiTroopCd(nextCd);
     }
-    setUnits((prev) => [...prev, makeUnit(troop, owner, lane)]);
+
+    const nextUnits = [...unitsRef.current, makeUnit(troop, owner, lane)];
+    unitsRef.current = nextUnits;
+    setUnits(nextUnits);
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
     track({
       name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy',
       at: Date.now(),
       props: { matchId: matchIdRef.current, troop: troop.id, lane }
     });
-  }, [running, units, playerTroopCd, aiTroopCd, spawnFx, laneOrders]);
+  }, [running, spawnFx]);
 
   const chooseAiAction = useCallback(() => {
     const laneStats = [0, 1, 2].map((lane) => {
-      const playerPower = units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk * 1.2, 0);
-      const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk, 0);
+      const playerPower = unitsRef.current.filter((u) => u.owner === 'player' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk * 1.2, 0);
+      const aiPower = unitsRef.current.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((acc, u) => acc + u.hp + u.atk, 0);
       const danger = playerPower - aiPower;
-      const towerRisk = (900 - aiTowers[lane]) * 0.6;
-      const opportunity = (900 - playerTowers[lane]) * 0.5;
+      const towerRisk = (900 - aiTowersRef.current[lane]) * 0.6;
+      const opportunity = (900 - playerTowersRef.current[lane]) * 0.5;
       return { lane, playerPower, aiPower, danger, towerRisk, opportunity };
     });
 
-    const available = TROOPS.filter((t) => (aiTroopCd[t.id] ?? 0) <= 0);
+    const available = TROOPS.filter((t) => (aiTroopCdRef.current[t.id] ?? 0) <= 0);
     if (available.length === 0) return null;
 
-    if (aiPersona === 'defensive') {
-      const lane = laneStats.sort((a, b) => b.danger + b.towerRisk - (a.danger + a.towerRisk))[0].lane;
-      const troop = available.sort((a, b) => b.hp - a.hp)[0];
+    const persona = aiPersonaRef.current;
+    if (persona === 'defensive') {
+      const lane = [...laneStats].sort((a, b) => b.danger + b.towerRisk - (a.danger + a.towerRisk))[0].lane;
+      const troop = [...available].sort((a, b) => b.hp - a.hp)[0];
       return { lane, troop, reason: '防守补线' };
     }
 
-    if (aiPersona === 'aggressive') {
-      const lane = laneStats.sort((a, b) => b.opportunity - b.danger * 0.25 - (a.opportunity - a.danger * 0.25))[0].lane;
-      const troop = available.sort((a, b) => b.atk + b.speed - (a.atk + a.speed))[0];
+    if (persona === 'aggressive') {
+      const lane = [...laneStats].sort((a, b) => b.opportunity - b.danger * 0.25 - (a.opportunity - a.danger * 0.25))[0].lane;
+      const troop = [...available].sort((a, b) => b.atk + b.speed - (a.atk + a.speed))[0];
       return { lane, troop, reason: '强攻破塔' };
     }
 
-    const lane = laneStats.sort((a, b) => Math.abs(b.danger - b.opportunity) - Math.abs(a.danger - a.opportunity))[0].lane;
-    const troop = available.sort((a, b) => b.atk + b.hp * 0.35 - (a.atk + a.hp * 0.35))[0];
+    const lane = [...laneStats].sort((a, b) => Math.abs(b.danger - b.opportunity) - Math.abs(a.danger - a.opportunity))[0].lane;
+    const troop = [...available].sort((a, b) => b.atk + b.hp * 0.35 - (a.atk + a.hp * 0.35))[0];
     return { lane, troop, reason: '均衡换线' };
-  }, [units, aiTowers, playerTowers, aiTroopCd, aiPersona]);
+  }, []);
 
   useEffect(() => {
     if (!coreFlash) return;
@@ -232,11 +271,13 @@ export default function BattlePage() {
       setPlayerTroopCd((prev) => {
         const next: Record<string, number> = {};
         for (const t of TROOPS) next[t.id] = Math.max(0, (prev[t.id] ?? 0) - dt * 1000);
+        playerTroopCdRef.current = next;
         return next;
       });
       setAiTroopCd((prev) => {
         const next: Record<string, number> = {};
         for (const t of TROOPS) next[t.id] = Math.max(0, (prev[t.id] ?? 0) - dt * 1000);
+        aiTroopCdRef.current = next;
         return next;
       });
 
@@ -251,30 +292,30 @@ export default function BattlePage() {
             at: Date.now(),
             props: {
               matchId: matchIdRef.current,
-              persona: aiPersona,
+              persona: aiPersonaRef.current,
               reason: action.reason,
               lane: action.lane,
               troop: action.troop.id,
-              mode: battleMode,
-              stage: stageName
+              mode: battleModeRef.current,
+              stage: stageNameRef.current
             }
           });
-          setAiLogs((prev) => [`AI(${aiPersona})：${action.reason}，${action.troop.name} -> ${action.lane + 1}路`, ...prev].slice(0, 6));
+          setAiLogs((prev) => [`AI(${aiPersonaRef.current})：${action.reason}，${action.troop.name} -> ${action.lane + 1}路`, ...prev].slice(0, 6));
         }
       }
 
       setUnits((prevUnits) => {
         const next = prevUnits.map((u) => ({ ...u, cooldown: Math.max(0, u.cooldown - dt) }));
-        const pT = [...playerTowers];
-        const aT = [...aiTowers];
-        let pCore = playerCore;
-        let aCore = aiCore;
+        const pT = [...playerTowersRef.current];
+        const aT = [...aiTowersRef.current];
+        let pCore = playerCoreRef.current;
+        let aCore = aiCoreRef.current;
 
         for (const unit of next) {
           const enemies = next.filter((x) => x.owner !== unit.owner && x.lane === unit.lane && x.hp > 0);
           const nearest = enemies.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
-          const order = unit.owner === 'player' ? laneOrders[unit.lane] ?? 'hold' : 'hold';
-          const sideRate = unit.owner === 'player' ? atkRate.player : atkRate.ai;
+          const order = unit.owner === 'player' ? laneOrdersRef.current[unit.lane] ?? 'hold' : 'hold';
+          const sideRate = unit.owner === 'player' ? atkRateRef.current.player : atkRateRef.current.ai;
           const atkFactor = (order === 'burst' ? 1.25 : order === 'push' ? 1.1 : 1) * sideRate;
           const moveFactor = order === 'push' ? 1.18 : order === 'hold' ? 0.92 : 1;
 
@@ -350,6 +391,10 @@ export default function BattlePage() {
 
         pCore = Math.max(0, pCore);
         aCore = Math.max(0, aCore);
+        playerTowersRef.current = pT as [number, number, number];
+        aiTowersRef.current = aT as [number, number, number];
+        playerCoreRef.current = pCore;
+        aiCoreRef.current = aCore;
         setPlayerTowers(pT as [number, number, number]);
         setAiTowers(aT as [number, number, number]);
         setPlayerCore(pCore);
@@ -362,7 +407,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, units, aiPersona, playerTroopCd, aiTroopCd, aiTowers, playerTowers, playerCore, aiCore, deploy, spawnFx, laneOrders, chooseAiAction, atkRate, battleMode, stageName]);
+  }, [running, deploy, spawnFx, chooseAiAction]);
 
   const result = useMemo(() => {
     if (running) return '';
@@ -379,7 +424,7 @@ export default function BattlePage() {
       winner,
       playerCoreHp: Math.round(playerCore),
       aiCoreHp: Math.round(aiCore),
-      turnsUsed: 120 - Math.ceil(timeLeft)
+      turnsUsed: Math.max(0, timeLimitRef.current - Math.ceil(timeLeft))
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
     track({
