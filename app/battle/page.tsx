@@ -88,6 +88,12 @@ const TROOP_ART: Record<string, string> = {
   archer: '/assets/units/archer.svg'
 };
 
+function getUnitAnimState(u: Unit) {
+  if (u.hp <= 0) return 'death';
+  if (u.cooldown > 0) return 'attack';
+  return 'move';
+}
+
 function troopById(id: string) {
   return TROOPS.find((t) => t.id === id) ?? TROOPS[0];
 }
@@ -730,33 +736,42 @@ export default function BattlePage() {
                     if (troop) deploy('player', troop, lane);
                   }
                 }}
-                className={`relative h-24 w-full overflow-hidden rounded border bg-gradient-to-r from-zinc-950/90 via-slate-900/80 to-zinc-950/90 text-left ${selectedLane === lane ? 'border-cyan-400/80' : 'border-zinc-700'}`}
+                className={`relative h-28 w-full overflow-hidden rounded border bg-gradient-to-b from-emerald-900/30 via-emerald-800/20 to-emerald-700/20 text-left ${selectedLane === lane ? 'border-cyan-400/80 shadow-[0_0_20px_rgba(34,211,238,0.2)]' : 'border-zinc-700'}`}
               >
                 <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800">
                   <div className="h-full bg-cyan-400/70" style={{ width: `${playerPct}%` }} />
                 </div>
-                <div className="absolute left-2 top-2 text-[10px] text-zinc-400">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
-                <div className="absolute right-2 top-2 text-[10px] text-zinc-400">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className="absolute left-2 top-2 text-[10px] text-zinc-300">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
+                <div className="absolute right-2 top-2 text-[10px] text-zinc-300">敌塔 {Math.round(aiTowers[lane])}</div>
+
+                <div className="absolute left-0 right-0 top-[52%] h-[16px] bg-sky-700/60" />
+                <div className="absolute left-[46%] top-[50%] h-[20px] w-[8%] rounded bg-amber-600/80" />
+                <div className="absolute left-[6%] top-[18%] h-6 w-6 rounded bg-cyan-500/50 ring-1 ring-cyan-200/70" />
+                <div className="absolute right-[6%] top-[18%] h-6 w-6 rounded bg-rose-500/50 ring-1 ring-rose-200/70" />
                 <div className="absolute inset-y-0 left-[50%] w-px bg-cyan-500/30" />
-                <div className="absolute inset-x-0 top-[58%] h-[2px] bg-zinc-700/60" />
                 <AnimatePresence>
                   {units
                     .filter((u) => u.lane === lane)
                     .map((u) => (
                       <motion.div
                         key={u.uid}
-                        className={`absolute top-9 w-7 ${u.owner === 'player' ? '' : ''}`}
+                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[30%]'} w-7`}
                         style={{ left: `calc(${u.x}% - 14px)` }}
                         initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: u.cooldown > 0 ? 1.12 : 1, opacity: 1 }}
+                        animate={{
+                          scale: u.cooldown > 0 ? 1.16 : 1,
+                          opacity: 1,
+                          y: getUnitAnimState(u) === 'move' ? [0, -1, 0] : 0,
+                          rotate: getUnitAnimState(u) === 'attack' ? (u.owner === 'player' ? 6 : -6) : 0
+                        }}
                         exit={{ scale: 0.1, opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                        title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)}`}
+                        transition={{ duration: 0.2, repeat: getUnitAnimState(u) === 'move' ? Infinity : 0, ease: 'easeInOut' }}
+                        title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)} (${getUnitAnimState(u)})`}
                       >
                         <img
                           src={TROOP_ART[u.troopId] ?? '/assets/units/fallback.svg'}
                           alt={u.troopId}
-                          className={`h-7 w-7 rounded ${u.owner === 'player' ? 'ring-1 ring-cyan-300/70' : 'ring-1 ring-rose-300/70'}`}
+                          className={`h-7 w-7 rounded ${u.owner === 'player' ? 'ring-1 ring-cyan-300/70' : 'ring-1 ring-rose-300/70'} ${u.owner === 'ai' ? 'scale-x-[-1]' : ''}`}
                         />
                         <div className="mt-0.5 h-1 w-7 rounded bg-zinc-800">
                           <div className={`h-1 rounded ${u.owner === 'player' ? 'bg-cyan-400' : 'bg-rose-400'}`} style={{ width: `${Math.max(8, Math.min(100, (u.hp / 150) * 100))}%` }} />
