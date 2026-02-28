@@ -47,6 +47,7 @@ type CombatFx = {
   x: number;
   text: string;
   color: 'cyan' | 'rose';
+  kind?: 'text' | 'explosion' | 'fire';
 };
 
 type ProjectileFx = {
@@ -355,11 +356,11 @@ export default function BattlePage() {
     }
   }, []);
 
-  const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color']) => {
+  const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color'], kind: CombatFx['kind'] = 'text') => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const cap = assetTierRef.current === 'low' ? 22 : assetTierRef.current === 'mid' ? 32 : 44;
     setEffects((prev) => {
-      const next = [...prev, { id, lane, x, text, color }].slice(-cap);
+      const next = [...prev, { id, lane, x, text, color, kind }].slice(-cap);
       fxPeakRef.current = Math.max(fxPeakRef.current, next.length);
       return next;
     });
@@ -602,7 +603,8 @@ export default function BattlePage() {
               const towerDamage = hit.dmg;
               targetTower[unit.lane] -= towerDamage;
               if (unit.owner === 'player') lanePressureRef.current[unit.lane] += towerDamage;
-              spawnFx(unit.lane, towerX, `塔-${towerDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              spawnFx(unit.lane, towerX, `塔-${towerDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose', 'explosion');
+              spawnFx(unit.lane, towerX + (unit.owner === 'player' ? 1.5 : -1.5), '燃烧', unit.owner === 'player' ? 'cyan' : 'rose', 'fire');
               playSfx(hit.crit ? 'crit' : 'tower');
               track({
                 name: 'battle_tower_hit',
@@ -628,7 +630,8 @@ export default function BattlePage() {
                 setCoreFlash('player');
               }
               setShake(hit.crit ? 14 : 10);
-              spawnFx(unit.lane, coreX, `本阵-${coreDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              spawnFx(unit.lane, coreX, `本阵-${coreDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose', 'explosion');
+              spawnFx(unit.lane, coreX, '主堡告急!', unit.owner === 'player' ? 'cyan' : 'rose', 'fire');
               playSfx(hit.crit ? 'crit' : 'tower');
               track({
                 name: 'battle_core_hit',
@@ -787,7 +790,7 @@ export default function BattlePage() {
           <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">⏱ 剩余：{Math.ceil(timeLeft)}s · {phaseLabel}</div>
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'player' ? 'border-rose-400 bg-rose-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🛡 我方本阵：{Math.round(playerCore)}</div>
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'ai' ? 'border-cyan-400 bg-cyan-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🏴 敌方本阵：{Math.round(aiCore)}</div>
-          <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
+          <div className={`rounded-md border px-3 py-2 font-semibold ${running ? 'border-cyan-500/30 bg-zinc-900/70 text-cyan-300' : settlement?.winner === 'player' ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200 animate-pulse' : settlement?.winner === 'ai' ? 'border-rose-400/70 bg-rose-500/20 text-rose-200 animate-pulse' : 'border-zinc-500/60 bg-zinc-800/70 text-zinc-200'}`}>{result || '战斗进行中...'}</div>
         </div>
         <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'} · 性能模式：{assetTier === 'low' ? '节能' : assetTier === 'mid' ? '平衡' : '高画质'}</p>
 
@@ -838,6 +841,8 @@ export default function BattlePage() {
                 </div>
                 <div className="absolute left-2 top-1 text-[10px] text-zinc-200">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
                 <div className="absolute right-2 top-1 text-[10px] text-zinc-200">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className={`absolute left-2 top-6 h-4 w-4 rounded ${playerTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : playerTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-cyan-400/80'}`} />
+                <div className={`absolute right-2 top-6 h-4 w-4 rounded ${aiTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : aiTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-rose-400/80'}`} />
                 <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-400/30" />
 
                 <AnimatePresence>
@@ -879,11 +884,12 @@ export default function BattlePage() {
                         key={f.id}
                         className={`absolute top-9 text-[10px] font-semibold ${f.color === 'cyan' ? 'text-cyan-300' : 'text-rose-300'}`}
                         style={{ left: `calc(${f.x}% - 10px)` }}
-                        initial={{ y: 8, opacity: 0 }}
-                        animate={{ y: -12, opacity: 1 }}
+                        initial={{ y: 8, opacity: 0, scale: 0.8 }}
+                        animate={{ y: -12, opacity: 1, scale: f.kind === 'explosion' ? [1, 1.35, 1] : 1 }}
                         exit={{ y: -20, opacity: 0 }}
-                        transition={{ duration: 0.45 }}
+                        transition={{ duration: f.kind === 'fire' ? 0.65 : 0.45 }}
                       >
+                        {f.kind === 'explosion' ? '💥' : f.kind === 'fire' ? '🔥' : null}
                         {f.text}
                       </motion.div>
                     ))}
