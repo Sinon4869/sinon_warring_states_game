@@ -47,12 +47,20 @@ type RetentionResp = {
   policy: { hotLimit: number; keepDays: number; sample: Record<string, number> };
 };
 
+type BattleQualityResp = {
+  sampleSize: number;
+  metrics: { drawRate: number; apmLike: number; avgTickMs: number; avgLagSpikes: number; avgFxPeak: number };
+  scores: { readability: number; hitFeel: number; learningCost: number; overall: number };
+  suggestions: string[];
+};
+
 export default function ReviewPage() {
   const [data, setData] = useState<SummaryResp | null>(null);
   const [aiAudit, setAiAudit] = useState<AiAuditResp | null>(null);
   const [pveDiff, setPveDiff] = useState<PveDiffResp | null>(null);
   const [versionCompare, setVersionCompare] = useState<VersionCompareResp | null>(null);
   const [retention, setRetention] = useState<RetentionResp | null>(null);
+  const [battleQuality, setBattleQuality] = useState<BattleQualityResp | null>(null);
   const [retentionMsg, setRetentionMsg] = useState('');
 
   useEffect(() => {
@@ -80,6 +88,11 @@ export default function ReviewPage() {
       .then((r) => r.json())
       .then((d) => setRetention(d))
       .catch(() => setRetention(null));
+
+    fetch('/api/review/battle-quality')
+      .then((r) => r.json())
+      .then((d) => setBattleQuality(d))
+      .catch(() => setBattleQuality(null));
   }, []);
 
   async function runCleanup() {
@@ -170,6 +183,29 @@ export default function ReviewPage() {
                 <p className={versionCompare.risk === 'low' ? 'text-emerald-300' : versionCompare.risk === 'medium' ? 'text-amber-300' : 'text-rose-300'}>
                   回归风险：{versionCompare.risk}
                 </p>
+              </div>
+            )}
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-2 text-base font-semibold">战斗体验质量 Review</h2>
+            {!battleQuality ? (
+              <p className="text-sm text-zinc-400">暂无战斗质量数据</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>样本：{battleQuality.sampleSize} 场 · 平局率：{(battleQuality.metrics.drawRate * 100).toFixed(1)}% · 操作密度(APM-like)：{battleQuality.metrics.apmLike}</p>
+                <p>性能：avgTick {battleQuality.metrics.avgTickMs}ms · lagSpikes {battleQuality.metrics.avgLagSpikes} · fxPeak {battleQuality.metrics.avgFxPeak}</p>
+                <div className="grid gap-2 md:grid-cols-4">
+                  <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">可读性：{battleQuality.scores.readability}</p>
+                  <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">打击感：{battleQuality.scores.hitFeel}</p>
+                  <p className="rounded border border-zinc-700 bg-zinc-900/60 px-3 py-2">学习成本：{battleQuality.scores.learningCost}</p>
+                  <p className="rounded border border-cyan-500/40 bg-cyan-900/20 px-3 py-2 text-cyan-300">综合：{battleQuality.scores.overall}</p>
+                </div>
+                <div className="space-y-1 text-xs text-zinc-300">
+                  {battleQuality.suggestions.map((s, i) => (
+                    <p key={`${s}-${i}`}>- {s}</p>
+                  ))}
+                </div>
               </div>
             )}
           </section>

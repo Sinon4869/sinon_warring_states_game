@@ -190,3 +190,49 @@ export function buildVersionCompare(events: EventItem[], left?: string, right?: 
 
   return { versions, left: l, right: r, delta, risk };
 }
+
+export function buildBattleQualityReview(events: EventItem[]) {
+  const summary = buildReviewSummary(events);
+  const perfRows = events.filter((e) => e.name === 'battle_perf_summary');
+  const recent = summary.matches.slice(0, 30);
+  const n = Math.max(1, recent.length);
+
+  const drawRate = recent.filter((m) => m.winner === 'draw').length / n;
+  const avgDeploys = recent.reduce((a, b) => a + b.deploys, 0) / n;
+  const avgTurns = recent.reduce((a, b) => a + b.turnsUsed, 0) / n;
+  const apmLike = Number((avgDeploys / Math.max(1, avgTurns / 60)).toFixed(2));
+
+  const pN = Math.max(1, perfRows.length);
+  const avgTickMs = Math.round(perfRows.reduce((a, b) => a + toNum(b.props?.avgTickMs, 100), 0) / pN);
+  const avgLagSpikes = Number((perfRows.reduce((a, b) => a + toNum(b.props?.lagSpikes, 0), 0) / pN).toFixed(2));
+  const avgFxPeak = Number((perfRows.reduce((a, b) => a + toNum(b.props?.fxPeak, 0), 0) / pN).toFixed(2));
+
+  const readabilityScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, avgFxPeak - 26) * 2.3 - Math.max(0, avgTickMs - 120) * 0.28)));
+  const hitFeelScore = Math.max(0, Math.min(100, Math.round(55 + Math.min(30, recent.reduce((a, b) => a + b.coreHits + b.towerHits, 0) / n) - drawRate * 18)));
+  const learningCostScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, apmLike - 13) * 4 - drawRate * 30)));
+
+  const suggestions: string[] = [];
+  if (drawRate > 0.22) suggestions.push('平局率偏高：继续加强终局收敛（加时攻速/塔伤）。');
+  if (apmLike > 14) suggestions.push('操作密度偏高：提高自动投放优先级并缩减必须手操频次。');
+  if (avgTickMs > 130 || avgLagSpikes > 2.5) suggestions.push('性能压力偏高：进一步降低低端档特效上限与动画复杂度。');
+  if (avgFxPeak > 30) suggestions.push('特效拥挤：减少同屏飘字，优先保留关键事件。');
+  if (suggestions.length === 0) suggestions.push('当前战斗可读性与负担处于可接受区间，可继续迭代美术质量。');
+
+  return {
+    sampleSize: recent.length,
+    metrics: {
+      drawRate: Number(drawRate.toFixed(4)),
+      apmLike,
+      avgTickMs,
+      avgLagSpikes,
+      avgFxPeak
+    },
+    scores: {
+      readability: readabilityScore,
+      hitFeel: hitFeelScore,
+      learningCost: learningCostScore,
+      overall: Math.round((readabilityScore + hitFeelScore + learningCostScore) / 3)
+    },
+    suggestions
+  };
+}
