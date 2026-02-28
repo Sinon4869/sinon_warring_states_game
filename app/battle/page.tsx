@@ -49,6 +49,15 @@ type CombatFx = {
   color: 'cyan' | 'rose';
 };
 
+type ProjectileFx = {
+  id: string;
+  lane: number;
+  fromX: number;
+  toX: number;
+  color: 'cyan' | 'rose';
+  kind: 'arrow' | 'lance';
+};
+
 type BattleContext = {
   id: string;
   region: string;
@@ -162,6 +171,7 @@ export default function BattlePage() {
   const [autoMode, setAutoMode] = useState<'selected' | 'all'>('all');
   const [battleSpeed, setBattleSpeed] = useState(0.7);
   const [effects, setEffects] = useState<CombatFx[]>([]);
+  const [projectiles, setProjectiles] = useState<ProjectileFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
   const [settlement, setSettlement] = useState<{ winner: BattleWriteback['winner']; reason: string; playerScore: number; aiScore: number } | null>(null);
@@ -310,6 +320,14 @@ export default function BattlePage() {
     setTimeout(() => {
       setEffects((prev) => prev.filter((f) => f.id !== id));
     }, 650);
+  }, []);
+
+  const spawnProjectile = useCallback((lane: number, fromX: number, toX: number, color: ProjectileFx['color'], kind: ProjectileFx['kind']) => {
+    const id = `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setProjectiles((prev) => [...prev, { id, lane, fromX, toX, color, kind }].slice(-30));
+    setTimeout(() => {
+      setProjectiles((prev) => prev.filter((p) => p.id !== id));
+    }, 280);
   }, []);
 
   const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
@@ -497,9 +515,18 @@ export default function BattlePage() {
               const hit = rollDamage(unit, atkFactor);
               nearest.hp -= hit.dmg;
               const fxPrefix = hit.fxTag === 'arrow' ? '🏹' : hit.fxTag === 'charge' ? '⚡' : hit.fxTag === 'pierce' ? '✦' : '✧';
+              if (hit.fxTag === 'arrow') {
+                spawnProjectile(unit.lane, unit.x, nearest.x, unit.owner === 'player' ? 'cyan' : 'rose', 'arrow');
+              }
+              if (hit.fxTag === 'pierce') {
+                spawnProjectile(unit.lane, unit.x, nearest.x, unit.owner === 'player' ? 'cyan' : 'rose', 'lance');
+              }
               spawnFx(unit.lane, nearest.x, `${fxPrefix}-${hit.dmg}${hit.crit ? ' 暴击!' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
               if (hit.crit) {
                 spawnFx(unit.lane, nearest.x + (unit.owner === 'player' ? 1 : -1) * 1.4, 'CRIT', unit.owner === 'player' ? 'cyan' : 'rose');
+                if (hit.fxTag === 'charge') {
+                  nearest.x += unit.owner === 'player' ? 2.2 : -2.2;
+                }
               }
               unit.cooldown = order === 'burst' ? 0.95 : 0.8;
             }
@@ -598,7 +625,7 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, deploy, spawnFx, chooseAiAction, choosePlayerAutoTroop]);
+  }, [running, deploy, spawnFx, spawnProjectile, chooseAiAction, choosePlayerAutoTroop]);
 
   const phaseLabel = useMemo(() => {
     if (!running) return '终局结算';
@@ -752,6 +779,21 @@ export default function BattlePage() {
                       >
                         {f.text}
                       </motion.div>
+                    ))}
+                </AnimatePresence>
+                <AnimatePresence>
+                  {projectiles
+                    .filter((p) => p.lane === lane)
+                    .map((p) => (
+                      <motion.div
+                        key={p.id}
+                        className={`absolute top-[54%] h-[2px] ${p.color === 'cyan' ? 'bg-cyan-300' : 'bg-rose-300'} ${p.kind === 'lance' ? 'h-[3px]' : ''}`}
+                        style={{ left: `calc(${p.fromX}% - 2px)`, width: p.kind === 'lance' ? '14px' : '10px' }}
+                        initial={{ x: 0, opacity: 0.2 }}
+                        animate={{ x: `calc(${p.toX - p.fromX}%)`, opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.22, ease: 'linear' }}
+                      />
                     ))}
                 </AnimatePresence>
               </button>
