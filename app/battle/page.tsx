@@ -784,19 +784,30 @@ export default function BattlePage() {
         </div>
         <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'} · 性能模式：{assetTier === 'low' ? '节能' : assetTier === 'mid' ? '平衡' : '高画质'}</p>
 
-        <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
-          <div className="mb-2 grid grid-cols-3 gap-2">
-            <div className="h-7 rounded bg-rose-700/60 ring-1 ring-rose-300/60" />
-            <div className="h-8 rounded bg-rose-600/70 ring-2 ring-amber-300/60" />
-            <div className="h-7 rounded bg-rose-700/60 ring-1 ring-rose-300/60" />
+        <div className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 bg-gradient-to-b from-emerald-900/35 via-emerald-800/30 to-emerald-700/25 shadow-[0_0_40px_rgba(34,211,238,0.12)]">
+          <div className="absolute inset-0 opacity-25" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+          <div className="absolute inset-x-0 top-[49%] h-[48px] bg-sky-700/70" />
+          <div className="absolute top-[47.5%] left-[15%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
+          <div className="absolute top-[47.5%] left-[44%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
+          <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
+
+          <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
+            <div className="h-8 rounded-md bg-rose-700/80 ring-1 ring-rose-200/70" />
+            <div className="h-10 rounded-md bg-rose-600/90 ring-2 ring-amber-300/70" />
+            <div className="h-8 rounded-md bg-rose-700/80 ring-1 ring-rose-200/70" />
+          </div>
+          <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2">
+            <div className="h-8 rounded-md bg-cyan-700/80 ring-1 ring-cyan-200/70" />
+            <div className="h-10 rounded-md bg-cyan-600/90 ring-2 ring-amber-300/70" />
+            <div className="h-8 rounded-md bg-cyan-700/80 ring-1 ring-cyan-200/70" />
           </div>
 
-          <div className="space-y-2">
           {[0, 1, 2].map((lane) => {
             const playerPower = units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
             const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
             const total = Math.max(1, playerPower + aiPower);
             const playerPct = (playerPower / total) * 100;
+            const laneTop = 74 + lane * 143;
             return (
               <button
                 key={lane}
@@ -808,26 +819,23 @@ export default function BattlePage() {
                     if (troop) deploy('player', troop, lane);
                   }
                 }}
-                className={`relative h-28 w-full overflow-hidden rounded border bg-gradient-to-b from-emerald-900/30 via-emerald-800/20 to-emerald-700/20 text-left ${selectedLane === lane ? 'border-cyan-400/80 shadow-[0_0_20px_rgba(34,211,238,0.2)]' : 'border-zinc-700'}`}
+                className={`absolute left-3 right-3 h-[132px] overflow-hidden rounded-xl border text-left ${selectedLane === lane ? 'border-cyan-400/90 shadow-[0_0_22px_rgba(34,211,238,0.25)]' : 'border-zinc-700/90 bg-zinc-900/20'}`}
+                style={{ top: `${laneTop}px` }}
               >
-                <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800">
-                  <div className="h-full bg-cyan-400/70" style={{ width: `${playerPct}%` }} />
+                <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800/70">
+                  <div className="h-full bg-cyan-400/80" style={{ width: `${playerPct}%` }} />
                 </div>
-                <div className="absolute left-2 top-2 text-[10px] text-zinc-300">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
-                <div className="absolute right-2 top-2 text-[10px] text-zinc-300">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className="absolute left-2 top-1 text-[10px] text-zinc-200">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
+                <div className="absolute right-2 top-1 text-[10px] text-zinc-200">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-400/30" />
 
-                <div className="absolute left-0 right-0 top-[52%] h-[16px] bg-sky-700/60" />
-                <div className="absolute left-[46%] top-[50%] h-[20px] w-[8%] rounded bg-amber-600/80" />
-                <div className="absolute left-[6%] top-[18%] h-6 w-6 rounded bg-cyan-500/50 ring-1 ring-cyan-200/70" />
-                <div className="absolute right-[6%] top-[18%] h-6 w-6 rounded bg-rose-500/50 ring-1 ring-rose-200/70" />
-                <div className="absolute inset-y-0 left-[50%] w-px bg-cyan-500/30" />
                 <AnimatePresence>
                   {units
                     .filter((u) => u.lane === lane)
                     .map((u) => (
                       <motion.div
                         key={u.uid}
-                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[30%]'} w-7`}
+                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[28%]'} w-7`}
                         style={{ left: `calc(${u.x}% - 14px)` }}
                         initial={{ scale: 0.6, opacity: 0 }}
                         animate={{
@@ -874,7 +882,7 @@ export default function BattlePage() {
                     .map((p) => (
                       <motion.div
                         key={p.id}
-                        className={`absolute top-[54%] h-[2px] ${p.color === 'cyan' ? 'bg-cyan-300' : 'bg-rose-300'} ${p.kind === 'lance' ? 'h-[3px]' : ''}`}
+                        className={`absolute top-[52%] h-[2px] ${p.color === 'cyan' ? 'bg-cyan-300' : 'bg-rose-300'} ${p.kind === 'lance' ? 'h-[3px]' : ''}`}
                         style={{ left: `calc(${p.fromX}% - 2px)`, width: p.kind === 'lance' ? '14px' : '10px' }}
                         initial={{ x: 0, opacity: 0.2 }}
                         animate={{ x: `calc(${p.toX - p.fromX}%)`, opacity: 1 }}
@@ -886,13 +894,6 @@ export default function BattlePage() {
               </button>
             );
           })}
-          </div>
-
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <div className="h-7 rounded bg-cyan-700/60 ring-1 ring-cyan-300/60" />
-            <div className="h-8 rounded bg-cyan-600/70 ring-2 ring-amber-300/60" />
-            <div className="h-7 rounded bg-cyan-700/60 ring-1 ring-cyan-300/60" />
-          </div>
         </div>
         <p className="text-xs text-zinc-400">AI 人格：{aiPersona}</p>
         <div className="space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
