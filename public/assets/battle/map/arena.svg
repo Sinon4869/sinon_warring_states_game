@@ -1,0 +1,12 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='720' height='1280' viewBox='0 0 720 1280'>
+<defs>
+<linearGradient id='g' x1='0' x2='0' y1='0' y2='1'><stop offset='0' stop-color='#1f6b4f'/><stop offset='1' stop-color='#184e3b'/></linearGradient>
+<pattern id='grid' width='40' height='40' patternUnits='userSpaceOnUse'><rect width='40' height='40' fill='none' stroke='rgba(255,255,255,.08)' stroke-width='1'/></pattern>
+</defs>
+<rect width='720' height='1280' fill='url(#g)'/>
+<rect width='720' height='1280' fill='url(#grid)' opacity='.45'/>
+<rect x='0' y='610' width='720' height='90' fill='#1d77a5' opacity='.9'/>
+<rect x='105' y='596' width='110' height='118' rx='10' fill='#c7962d'/>
+<rect x='305' y='596' width='110' height='118' rx='10' fill='#d7a033'/>
+<rect x='505' y='596' width='110' height='118' rx='10' fill='#c7962d'/>
+</svg>

@@ -83,10 +83,10 @@ const TROOPS: Troop[] = [
 ];
 
 const TROOP_ART: Record<string, string> = {
-  infantry: '/assets/units/infantry.svg',
-  spear: '/assets/units/spear.svg',
-  cavalry: '/assets/units/cavalry.svg',
-  archer: '/assets/units/archer.svg'
+  infantry: '/assets/battle/units/swords.svg',
+  spear: '/assets/battle/buildings/shield.svg',
+  cavalry: '/assets/battle/units/horse.svg',
+  archer: '/assets/battle/units/bow.svg'
 };
 
 function getUnitAnimState(u: Unit) {
@@ -794,7 +794,7 @@ export default function BattlePage() {
         </div>
         <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'} · 性能模式：{assetTier === 'low' ? '节能' : assetTier === 'mid' ? '平衡' : '高画质'}</p>
 
-        <div className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 bg-gradient-to-b from-emerald-900/35 via-emerald-800/30 to-emerald-700/25 shadow-[0_0_40px_rgba(34,211,238,0.12)]">
+        <div className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 shadow-[0_0_40px_rgba(34,211,238,0.12)]" style={{ backgroundImage: "url('/assets/battle/map/arena.svg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
           <div className="absolute inset-0 opacity-25" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
           <div className="absolute inset-x-0 top-[49%] h-[48px] bg-sky-700/70" />
           <div className="absolute top-[47.5%] left-[15%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
@@ -802,18 +802,14 @@ export default function BattlePage() {
           <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
 
           <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
-            <div className="h-10 rounded-md border border-rose-200/70 bg-gradient-to-b from-rose-300/50 to-rose-800/85 shadow-[0_4px_12px_rgba(244,63,94,0.45)]" />
-            <div className="relative h-12 rounded-md border-2 border-amber-300/80 bg-gradient-to-b from-rose-200/60 to-rose-700/90 shadow-[0_6px_14px_rgba(251,191,36,0.45)]">
-              <span className="absolute inset-x-0 top-[9px] text-center text-[10px] font-bold text-amber-100">敌方主堡</span>
-            </div>
-            <div className="h-10 rounded-md border border-rose-200/70 bg-gradient-to-b from-rose-300/50 to-rose-800/85 shadow-[0_4px_12px_rgba(244,63,94,0.45)]" />
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="enemy-tower" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-rose-900/35 p-1 ring-2 ring-amber-300/70"><img src="/assets/battle/buildings/castle.svg" alt="enemy-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="enemy-tower" className="h-full w-full object-contain" /></div>
           </div>
           <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2">
-            <div className="h-10 rounded-md border border-cyan-200/70 bg-gradient-to-b from-cyan-300/50 to-cyan-800/85 shadow-[0_4px_12px_rgba(34,211,238,0.45)]" />
-            <div className="relative h-12 rounded-md border-2 border-amber-300/80 bg-gradient-to-b from-cyan-200/60 to-cyan-700/90 shadow-[0_6px_14px_rgba(251,191,36,0.45)]">
-              <span className="absolute inset-x-0 top-[9px] text-center text-[10px] font-bold text-amber-100">我方主堡</span>
-            </div>
-            <div className="h-10 rounded-md border border-cyan-200/70 bg-gradient-to-b from-cyan-300/50 to-cyan-800/85 shadow-[0_4px_12px_rgba(34,211,238,0.45)]" />
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="player-tower" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-cyan-900/35 p-1 ring-2 ring-amber-300/70"><img src="/assets/battle/buildings/castle.svg" alt="player-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="player-tower" className="h-full w-full object-contain" /></div>
           </div>
 
           {[0, 1, 2].map((lane) => {
@@ -889,7 +885,7 @@ export default function BattlePage() {
                         exit={{ y: -20, opacity: 0 }}
                         transition={{ duration: f.kind === 'fire' ? 0.65 : 0.45 }}
                       >
-                        {f.kind === 'explosion' ? '💥' : f.kind === 'fire' ? '🔥' : null}
+                        {f.kind === 'explosion' ? <img src="/assets/battle/fx/explosion.svg" alt="explosion" className="mr-1 inline h-4 w-4" /> : f.kind === 'fire' ? <img src="/assets/battle/fx/fire.svg" alt="fire" className="mr-1 inline h-4 w-4" /> : null}
                         {f.text}
                       </motion.div>
                     ))}
