@@ -102,6 +102,12 @@ function getUnitScale(troopId: string) {
   return 1;
 }
 
+function castleAssetByHp(hp: number, base: number) {
+  if (hp <= base * 0.35) return '/assets/battle/buildings/castle_critical.svg';
+  if (hp <= base * 0.7) return '/assets/battle/buildings/castle_damaged.svg';
+  return '/assets/battle/buildings/castle.svg';
+}
+
 function troopById(id: string) {
   return TROOPS.find((t) => t.id === id) ?? TROOPS[0];
 }
@@ -802,14 +808,14 @@ export default function BattlePage() {
           <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
 
           <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
-            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="enemy-tower" className="h-full w-full object-contain" /></div>
-            <div className="h-14 rounded-md bg-rose-900/35 p-1 ring-2 ring-amber-300/70"><img src="/assets/battle/buildings/castle.svg" alt="enemy-core" className="h-full w-full object-contain" /></div>
-            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="enemy-tower" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[0], BASE_TOWER_HP)} alt="enemy-tower-left" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-rose-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(aiCore, BASE_CORE_HP)} alt="enemy-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[2], BASE_TOWER_HP)} alt="enemy-tower-right" className="h-full w-full object-contain" /></div>
           </div>
           <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2">
-            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="player-tower" className="h-full w-full object-contain" /></div>
-            <div className="h-14 rounded-md bg-cyan-900/35 p-1 ring-2 ring-amber-300/70"><img src="/assets/battle/buildings/castle.svg" alt="player-core" className="h-full w-full object-contain" /></div>
-            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src="/assets/battle/buildings/castle.svg" alt="player-tower" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[0], BASE_TOWER_HP)} alt="player-tower-left" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-cyan-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(playerCore, BASE_CORE_HP)} alt="player-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[2], BASE_TOWER_HP)} alt="player-tower-right" className="h-full w-full object-contain" /></div>
           </div>
 
           {[0, 1, 2].map((lane) => {
