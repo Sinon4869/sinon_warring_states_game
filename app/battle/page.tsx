@@ -533,6 +533,16 @@ export default function BattlePage() {
                 if (hit.fxTag === 'charge') {
                   nearest.x += unit.owner === 'player' ? 2.2 : -2.2;
                 }
+                if (hit.fxTag === 'arrow') {
+                  const splash = next
+                    .filter((x) => x.owner !== unit.owner && x.lane === unit.lane && x.uid !== nearest.uid && Math.abs(x.x - nearest.x) <= 5)
+                    .slice(0, 2);
+                  splash.forEach((s) => {
+                    const spDmg = Math.round(hit.dmg * 0.45);
+                    s.hp -= spDmg;
+                    spawnFx(unit.lane, s.x, `溅射-${spDmg}`, unit.owner === 'player' ? 'cyan' : 'rose');
+                  });
+                }
               }
               unit.cooldown = order === 'burst' ? 0.95 : 0.8;
             }
@@ -719,7 +729,14 @@ export default function BattlePage() {
         </div>
         <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'}</p>
 
-        <div className="space-y-2">
+        <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
+          <div className="mb-2 grid grid-cols-3 gap-2">
+            <div className="h-7 rounded bg-rose-700/60 ring-1 ring-rose-300/60" />
+            <div className="h-8 rounded bg-rose-600/70 ring-2 ring-amber-300/60" />
+            <div className="h-7 rounded bg-rose-700/60 ring-1 ring-rose-300/60" />
+          </div>
+
+          <div className="space-y-2">
           {[0, 1, 2].map((lane) => {
             const playerPower = units.filter((u) => u.owner === 'player' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
             const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
@@ -814,6 +831,13 @@ export default function BattlePage() {
               </button>
             );
           })}
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="h-7 rounded bg-cyan-700/60 ring-1 ring-cyan-300/60" />
+            <div className="h-8 rounded bg-cyan-600/70 ring-2 ring-amber-300/60" />
+            <div className="h-7 rounded bg-cyan-700/60 ring-1 ring-cyan-300/60" />
+          </div>
         </div>
         <p className="text-xs text-zinc-400">AI 人格：{aiPersona}</p>
         <div className="space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
