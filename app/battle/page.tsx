@@ -94,6 +94,13 @@ function getUnitAnimState(u: Unit) {
   return 'move';
 }
 
+function getUnitScale(troopId: string) {
+  if (troopId === 'cavalry') return 1.2;
+  if (troopId === 'infantry') return 1.05;
+  if (troopId === 'archer') return 0.95;
+  return 1;
+}
+
 function troopById(id: string) {
   return TROOPS.find((t) => t.id === id) ?? TROOPS[0];
 }
@@ -792,14 +799,18 @@ export default function BattlePage() {
           <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
 
           <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
-            <div className="h-8 rounded-md bg-rose-700/80 ring-1 ring-rose-200/70" />
-            <div className="h-10 rounded-md bg-rose-600/90 ring-2 ring-amber-300/70" />
-            <div className="h-8 rounded-md bg-rose-700/80 ring-1 ring-rose-200/70" />
+            <div className="h-10 rounded-md border border-rose-200/70 bg-gradient-to-b from-rose-300/50 to-rose-800/85 shadow-[0_4px_12px_rgba(244,63,94,0.45)]" />
+            <div className="relative h-12 rounded-md border-2 border-amber-300/80 bg-gradient-to-b from-rose-200/60 to-rose-700/90 shadow-[0_6px_14px_rgba(251,191,36,0.45)]">
+              <span className="absolute inset-x-0 top-[9px] text-center text-[10px] font-bold text-amber-100">敌方主堡</span>
+            </div>
+            <div className="h-10 rounded-md border border-rose-200/70 bg-gradient-to-b from-rose-300/50 to-rose-800/85 shadow-[0_4px_12px_rgba(244,63,94,0.45)]" />
           </div>
           <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2">
-            <div className="h-8 rounded-md bg-cyan-700/80 ring-1 ring-cyan-200/70" />
-            <div className="h-10 rounded-md bg-cyan-600/90 ring-2 ring-amber-300/70" />
-            <div className="h-8 rounded-md bg-cyan-700/80 ring-1 ring-cyan-200/70" />
+            <div className="h-10 rounded-md border border-cyan-200/70 bg-gradient-to-b from-cyan-300/50 to-cyan-800/85 shadow-[0_4px_12px_rgba(34,211,238,0.45)]" />
+            <div className="relative h-12 rounded-md border-2 border-amber-300/80 bg-gradient-to-b from-cyan-200/60 to-cyan-700/90 shadow-[0_6px_14px_rgba(251,191,36,0.45)]">
+              <span className="absolute inset-x-0 top-[9px] text-center text-[10px] font-bold text-amber-100">我方主堡</span>
+            </div>
+            <div className="h-10 rounded-md border border-cyan-200/70 bg-gradient-to-b from-cyan-300/50 to-cyan-800/85 shadow-[0_4px_12px_rgba(34,211,238,0.45)]" />
           </div>
 
           {[0, 1, 2].map((lane) => {
@@ -835,8 +846,8 @@ export default function BattlePage() {
                     .map((u) => (
                       <motion.div
                         key={u.uid}
-                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[28%]'} w-7`}
-                        style={{ left: `calc(${u.x}% - 14px)` }}
+                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[28%]'} w-8`}
+                        style={{ left: `calc(${u.x}% - 16px)`, zIndex: u.owner === 'player' ? 30 : 20 }}
                         initial={{ scale: 0.6, opacity: 0 }}
                         animate={{
                           scale: u.cooldown > 0 ? 1.16 : 1,
@@ -851,9 +862,10 @@ export default function BattlePage() {
                         <img
                           src={TROOP_ART[u.troopId] ?? '/assets/units/fallback.svg'}
                           alt={u.troopId}
-                          className={`h-7 w-7 rounded ${u.owner === 'player' ? 'ring-1 ring-cyan-300/70' : 'ring-1 ring-rose-300/70'} ${u.owner === 'ai' ? 'scale-x-[-1]' : ''}`}
+                          className={`h-8 w-8 rounded ${u.owner === 'player' ? 'ring-1 ring-cyan-300/70' : 'ring-1 ring-rose-300/70'} ${u.owner === 'ai' ? 'scale-x-[-1]' : ''}`}
+                          style={{ transform: `${u.owner === 'ai' ? 'scaleX(-1) ' : ''}scale(${getUnitScale(u.troopId)})` }}
                         />
-                        <div className="mt-0.5 h-1 w-7 rounded bg-zinc-800">
+                        <div className="mt-0.5 h-1 w-8 rounded bg-zinc-800">
                           <div className={`h-1 rounded ${u.owner === 'player' ? 'bg-cyan-400' : 'bg-rose-400'}`} style={{ width: `${Math.max(8, Math.min(100, (u.hp / 150) * 100))}%` }} />
                         </div>
                       </motion.div>
@@ -882,13 +894,16 @@ export default function BattlePage() {
                     .map((p) => (
                       <motion.div
                         key={p.id}
-                        className={`absolute top-[52%] h-[2px] ${p.color === 'cyan' ? 'bg-cyan-300' : 'bg-rose-300'} ${p.kind === 'lance' ? 'h-[3px]' : ''}`}
-                        style={{ left: `calc(${p.fromX}% - 2px)`, width: p.kind === 'lance' ? '14px' : '10px' }}
-                        initial={{ x: 0, opacity: 0.2 }}
-                        animate={{ x: `calc(${p.toX - p.fromX}%)`, opacity: 1 }}
+                        className="absolute top-[52%]"
+                        style={{ left: `calc(${p.fromX}% - 8px)` }}
+                        initial={{ x: 0, opacity: 0.2, scale: 0.8 }}
+                        animate={{ x: `calc(${p.toX - p.fromX}%)`, opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.22, ease: 'linear' }}
-                      />
+                      >
+                        <div className={`h-2 w-2 rounded-full ${p.color === 'cyan' ? 'bg-cyan-300' : 'bg-rose-300'} shadow-[0_0_10px_rgba(255,255,255,0.45)]`} />
+                        <div className={`-mt-1 h-[2px] w-4 ${p.color === 'cyan' ? 'bg-cyan-400/70' : 'bg-rose-400/70'} ${p.kind === 'lance' ? 'w-5' : ''}`} />
+                      </motion.div>
                     ))}
                 </AnimatePresence>
               </button>
