@@ -191,6 +191,41 @@ export function buildVersionCompare(events: EventItem[], left?: string, right?: 
   return { versions, left: l, right: r, delta, risk };
 }
 
+export function buildMapOpsReview(events: EventItem[]) {
+  const mapActions = events.filter((e) => e.name === 'map_action');
+  const enemyActions = events.filter((e) => e.name === 'map_enemy_action');
+  const campaignResults = events.filter((e) => e.name === 'battle_result' && e.props?.mode === 'campaign');
+
+  const byRegion: Record<string, { actions: number; wins: number; losses: number; draws: number; supplyBlocked: number }> = {};
+  for (const a of mapActions) {
+    const rid = String(a.props?.regionId ?? 'unknown');
+    if (!byRegion[rid]) byRegion[rid] = { actions: 0, wins: 0, losses: 0, draws: 0, supplyBlocked: 0 };
+    byRegion[rid].actions += 1;
+    if (a.props?.supplyOk === false) byRegion[rid].supplyBlocked += 1;
+  }
+
+  for (const r of campaignResults) {
+    const rid = String(r.props?.regionId ?? 'unknown');
+    if (!byRegion[rid]) byRegion[rid] = { actions: 0, wins: 0, losses: 0, draws: 0, supplyBlocked: 0 };
+    const w = String(r.props?.winner ?? 'draw');
+    if (w === 'player') byRegion[rid].wins += 1;
+    else if (w === 'ai') byRegion[rid].losses += 1;
+    else byRegion[rid].draws += 1;
+  }
+
+  const regions = Object.entries(byRegion)
+    .map(([regionId, v]) => ({ regionId, ...v, winRate: v.wins / Math.max(1, v.wins + v.losses + v.draws) }))
+    .sort((a, b) => b.actions - a.actions)
+    .slice(0, 15);
+
+  return {
+    totalMapActions: mapActions.length,
+    enemyActions: enemyActions.length,
+    supplyInterrupted: mapActions.filter((e) => e.props?.supplyOk === false).length,
+    regions
+  };
+}
+
 export function buildBattleQualityReview(events: EventItem[]) {
   const summary = buildReviewSummary(events);
   const perfRows = events.filter((e) => e.name === 'battle_perf_summary');

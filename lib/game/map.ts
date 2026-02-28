@@ -109,6 +109,45 @@ export function hasSupplyLine(regionId: string, owners: Record<string, RegionOwn
   return false;
 }
 
+export type EnemyMapDecision = {
+  action: 'expand' | 'harass' | 'cut_supply';
+  targetRegionId: string;
+  targetRegionName: string;
+  reason: string;
+};
+
+export function chooseEnemyMapDecision(owners: Record<string, RegionOwner>): EnemyMapDecision | null {
+  const enemyRegions = REGIONS.filter((r) => owners[r.id] === 'enemy');
+  if (enemyRegions.length === 0) return null;
+
+  const frontier = EDGES.flatMap((e) => {
+    const a = owners[e.from];
+    const b = owners[e.to];
+    if (a === 'enemy' && b === 'player') return [e.to];
+    if (b === 'enemy' && a === 'player') return [e.from];
+    if (a === 'enemy' && b === 'neutral') return [e.to];
+    if (b === 'enemy' && a === 'neutral') return [e.from];
+    return [] as string[];
+  });
+
+  const uniqueTargets = [...new Set(frontier)].map((id) => REGIONS.find((r) => r.id === id)).filter(Boolean) as Region[];
+  if (uniqueTargets.length === 0) {
+    const fallback = enemyRegions[0];
+    return { action: 'harass', targetRegionId: fallback.id, targetRegionName: fallback.name, reason: '边境平静，执行骚扰侦察' };
+  }
+
+  const sorted = uniqueTargets.sort((a, b) => {
+    const wa = (a.tag === 'capital' ? 3 : a.tag === 'granary' ? 2 : 1) + (a.terrain === 'river' ? 1 : 0);
+    const wb = (b.tag === 'capital' ? 3 : b.tag === 'granary' ? 2 : 1) + (b.terrain === 'river' ? 1 : 0);
+    return wb - wa;
+  });
+
+  const top = sorted[0];
+  const action = top.tag === 'granary' ? 'cut_supply' : owners[top.id] === 'player' ? 'harass' : 'expand';
+  const reason = action === 'cut_supply' ? '瞄准粮道切断补给' : action === 'harass' ? '对我方边境施压' : '向中立区域扩张';
+  return { action, targetRegionId: top.id, targetRegionName: top.name, reason };
+}
+
 export function createBattleContextFromMap(region: Region, action: MapActionType, supplyOk: boolean): MapBattleContext {
   const baseEnemy = action === 'attack' ? 120 : action === 'march' ? 95 : 85;
   const terrainBuff = region.terrain === 'mountain' ? 18 : region.terrain === 'river' ? 12 : 0;

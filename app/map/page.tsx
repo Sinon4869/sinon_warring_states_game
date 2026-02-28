@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
-import { EDGES, REGIONS, createBattleContextFromMap, frontierEdges, hasSupplyLine, resolveOwnership, type Region } from '@/lib/game/map';
+import { EDGES, REGIONS, chooseEnemyMapDecision, createBattleContextFromMap, frontierEdges, hasSupplyLine, resolveOwnership, type Region } from '@/lib/game/map';
 import { unpackSave } from '@/lib/game/save';
+import { track } from '@/lib/telemetry';
 
 function ownerClass(owner: 'player' | 'enemy' | 'neutral') {
   if (owner === 'player') return 'fill-cyan-400 stroke-cyan-300';
@@ -21,6 +22,8 @@ export default function MapPage() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [last, setLast] = useState({ x: 0, y: 0 });
+  const [showFog, setShowFog] = useState(true);
+  const [enemyMsg, setEnemyMsg] = useState('');
 
   const owners = useMemo(() => {
     if (typeof window === 'undefined') return resolveOwnership();
@@ -42,6 +45,11 @@ export default function MapPage() {
     const supplyOk = hasSupplyLine(selected.id, owners);
     const ctx = createBattleContextFromMap(selected, action, supplyOk);
     localStorage.setItem('sws-battle-context', JSON.stringify(ctx));
+    track({
+      name: 'map_action',
+      at: Date.now(),
+      props: { contextId: ctx.id, regionId: ctx.regionId, region: selected.name, action, supplyOk }
+    });
 
     const raw = localStorage.getItem('sws-map-actions');
     const logs = raw ? (JSON.parse(raw) as Array<{ at: number; action: string; region: string; supplyOk: boolean }>) : [];
@@ -54,6 +62,21 @@ export default function MapPage() {
     }
 
     router.push('/battle?from=campaign&context=1');
+  }
+
+  function runEnemyTurn() {
+    const decision = chooseEnemyMapDecision(owners);
+    if (!decision) {
+      setEnemyMsg('敌军暂无可执行行动。');
+      return;
+    }
+    const text = `敌军行动：${decision.action} -> ${decision.targetRegionName}（${decision.reason}）`;
+    setEnemyMsg(text);
+    const raw = localStorage.getItem('sws-map-enemy-actions');
+    const logs = raw ? (JSON.parse(raw) as Array<{ at: number; action: string; regionId: string; region: string; reason: string }>) : [];
+    logs.unshift({ at: Date.now(), action: decision.action, regionId: decision.targetRegionId, region: decision.targetRegionName, reason: decision.reason });
+    localStorage.setItem('sws-map-enemy-actions', JSON.stringify(logs.slice(0, 80)));
+    track({ name: 'map_enemy_action', at: Date.now(), props: { action: decision.action, regionId: decision.targetRegionId, region: decision.targetRegionName, reason: decision.reason } });
   }
 
   return (
@@ -74,7 +97,10 @@ export default function MapPage() {
           <button className="chip-btn" onClick={() => setScale((s) => Math.max(0.6, Number((s - 0.1).toFixed(2))))}>缩小</button>
           <button className="chip-btn" onClick={() => setScale((s) => Math.min(2.2, Number((s + 0.1).toFixed(2))))}>放大</button>
           <button className="chip-btn" onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }}>重置视角</button>
+          <button className="chip-btn" onClick={() => setShowFog((v) => !v)}>{showFog ? '关闭迷雾' : '开启迷雾'}</button>
+          <button className="chip-btn border-rose-500/60" onClick={runEnemyTurn}>敌军回合模拟</button>
         </div>
+        {enemyMsg && <p className="mb-2 text-xs text-rose-300">{enemyMsg}</p>}
 
         <div
           className="relative h-[460px] overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950/80"
@@ -91,6 +117,12 @@ export default function MapPage() {
         >
           <svg viewBox="0 0 420 430" className="h-full w-full" style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: 'center center' }}>
             <rect x="0" y="0" width="420" height="430" fill="rgba(8,12,24,0.85)" />
+
+            {REGIONS.map((r) => (
+              <g key={`terrain-${r.id}`}>
+                <circle cx={r.x} cy={r.y} r={r.terrain === 'mountain' ? 16 : r.terrain === 'river' ? 14 : 12} fill={r.terrain === 'mountain' ? 'rgba(251,191,36,0.16)' : r.terrain === 'river' ? 'rgba(56,189,248,0.18)' : 'rgba(74,222,128,0.14)'} />
+              </g>
+            ))}
 
             {EDGES.map((edge) => {
               const a = REGIONS.find((r) => r.id === edge.from);
@@ -116,6 +148,10 @@ export default function MapPage() {
                 <circle cx={r.x} cy={r.y} r={selected?.id === r.id ? 9 : 7} className={ownerClass(owners[r.id])} strokeWidth={selected?.id === r.id ? 2.5 : 1.5} />
                 <text x={r.x + 9} y={r.y - 8} fontSize="10" fill="#d4d4d8">{r.name}</text>
               </g>
+            ))}
+
+            {showFog && REGIONS.filter((r) => owners[r.id] !== 'player').map((r) => (
+              <circle key={`fog-${r.id}`} cx={r.x} cy={r.y} r={18} fill="rgba(2,6,23,0.35)" stroke="rgba(148,163,184,0.18)" strokeWidth={1} />
             ))}
           </svg>
         </div>

@@ -1,0 +1,12 @@
+{
+  "id": "neon",
+  "name": "霓虹训练场",
+  "battle": {
+    "map": "/assets/battle/map/arena.svg",
+    "castleNormal": "/assets/battle/buildings/castle.svg",
+    "castleDamaged": "/assets/battle/buildings/castle_damaged.svg",
+    "castleCritical": "/assets/battle/buildings/castle_critical.svg",
+    "fxExplosion": "/assets/battle/fx/explosion.svg",
+    "fxFire": "/assets/battle/fx/fire.svg"
+  }
+}

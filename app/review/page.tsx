@@ -54,6 +54,13 @@ type BattleQualityResp = {
   suggestions: string[];
 };
 
+type MapOpsResp = {
+  totalMapActions: number;
+  enemyActions: number;
+  supplyInterrupted: number;
+  regions: Array<{ regionId: string; actions: number; wins: number; losses: number; draws: number; supplyBlocked: number; winRate: number }>;
+};
+
 export default function ReviewPage() {
   const [data, setData] = useState<SummaryResp | null>(null);
   const [aiAudit, setAiAudit] = useState<AiAuditResp | null>(null);
@@ -61,6 +68,7 @@ export default function ReviewPage() {
   const [versionCompare, setVersionCompare] = useState<VersionCompareResp | null>(null);
   const [retention, setRetention] = useState<RetentionResp | null>(null);
   const [battleQuality, setBattleQuality] = useState<BattleQualityResp | null>(null);
+  const [mapOps, setMapOps] = useState<MapOpsResp | null>(null);
   const [retentionMsg, setRetentionMsg] = useState('');
 
   useEffect(() => {
@@ -93,6 +101,11 @@ export default function ReviewPage() {
       .then((r) => r.json())
       .then((d) => setBattleQuality(d))
       .catch(() => setBattleQuality(null));
+
+    fetch('/api/review/map-ops')
+      .then((r) => r.json())
+      .then((d) => setMapOps(d))
+      .catch(() => setMapOps(null));
   }, []);
 
   async function runCleanup() {
@@ -204,6 +217,22 @@ export default function ReviewPage() {
                 <div className="space-y-1 text-xs text-zinc-300">
                   {battleQuality.suggestions.map((s, i) => (
                     <p key={`${s}-${i}`}>- {s}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-2 text-base font-semibold">地图运营与复盘</h2>
+            {!mapOps ? (
+              <p className="text-sm text-zinc-400">暂无地图运营数据</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>我方地图行动：{mapOps.totalMapActions} · 敌军行动：{mapOps.enemyActions} · 补给中断：{mapOps.supplyInterrupted}</p>
+                <div className="space-y-1 text-xs text-zinc-300">
+                  {mapOps.regions.slice(0, 8).map((r) => (
+                    <p key={r.regionId}>- {r.regionId}：行动{r.actions} / 胜率{(r.winRate * 100).toFixed(1)}% / 补给中断{r.supplyBlocked}</p>
                   ))}
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { track } from '@/lib/telemetry';
 import type { BattleWriteback } from '@/lib/game/types';
-import { detectAssetTier, loadManifest, preloadAssets, selectAssets } from '@/lib/assets/pipeline';
+import { detectAssetTier, loadBattleSkin, loadManifest, preloadAssets, selectAssets, type BattleSkin } from '@/lib/assets/pipeline';
 import { getPveStage } from '@/lib/game/pve';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev';
@@ -102,10 +102,10 @@ function getUnitScale(troopId: string) {
   return 1;
 }
 
-function castleAssetByHp(hp: number, base: number) {
-  if (hp <= base * 0.35) return '/assets/battle/buildings/castle_critical.svg';
-  if (hp <= base * 0.7) return '/assets/battle/buildings/castle_damaged.svg';
-  return '/assets/battle/buildings/castle.svg';
+function castleAssetByHp(hp: number, base: number, skin?: BattleSkin | null) {
+  if (hp <= base * 0.35) return skin?.battle.castleCritical ?? '/assets/battle/buildings/castle_critical.svg';
+  if (hp <= base * 0.7) return skin?.battle.castleDamaged ?? '/assets/battle/buildings/castle_damaged.svg';
+  return skin?.battle.castleNormal ?? '/assets/battle/buildings/castle.svg';
 }
 
 function troopById(id: string) {
@@ -194,6 +194,7 @@ export default function BattlePage() {
   const [projectiles, setProjectiles] = useState<ProjectileFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
+  const [battleSkin, setBattleSkin] = useState<BattleSkin | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [settlement, setSettlement] = useState<{ winner: BattleWriteback['winner']; reason: string; playerScore: number; aiScore: number } | null>(null);
   const [shake, setShake] = useState(0);
@@ -321,11 +322,14 @@ export default function BattlePage() {
     let cancelled = false;
     const tier = detectAssetTier();
     setAssetTier(tier);
-    loadManifest()
-      .then((manifest) => preloadAssets(selectAssets(manifest, tier)))
-      .finally(() => {
-        if (!cancelled) setAssetStatus('ready');
-      });
+    Promise.all([
+      loadManifest().then((manifest) => preloadAssets(selectAssets(manifest, tier))),
+      loadBattleSkin('default').then((skin) => {
+        if (!cancelled) setBattleSkin(skin);
+      })
+    ]).finally(() => {
+      if (!cancelled) setAssetStatus('ready');
+    });
     return () => {
       cancelled = true;
     };
@@ -759,7 +763,7 @@ export default function BattlePage() {
     track({
       name: 'battle_result',
       at: Date.now(),
-      props: { matchId: matchIdRef.current, winner: report.winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null, reason: outcome.reason }
+      props: { matchId: matchIdRef.current, winner: report.winner, turnsUsed: report.turnsUsed, mode: battleMode, stage: stageName, version: APP_VERSION, contextId: campaignContext?.id ?? null, regionId: campaignContext?.regionId ?? null, reason: outcome.reason }
     });
   }, [running, playerCore, aiCore, playerTowers, aiTowers, timeLeft, battleMode, stageName, campaignContext]);
 
@@ -803,7 +807,7 @@ export default function BattlePage() {
 
         <div
           className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 shadow-[0_0_40px_rgba(34,211,238,0.12)]"
-          style={{ backgroundImage: "url('/assets/battle/map/arena.svg')", backgroundSize: 'cover', backgroundPosition: 'center' }}
+          style={{ backgroundImage: `url('${battleSkin?.battle.map ?? '/assets/battle/map/arena.svg'}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
           onClick={(e) => {
             const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
             const rx = (e.clientX - rect.left) / rect.width;
@@ -823,14 +827,14 @@ export default function BattlePage() {
           <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
 
           <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
-            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[0], BASE_TOWER_HP)} alt="enemy-tower-left" className="h-full w-full object-contain" /></div>
-            <div className="h-14 rounded-md bg-rose-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(aiCore, BASE_CORE_HP)} alt="enemy-core" className="h-full w-full object-contain" /></div>
-            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[2], BASE_TOWER_HP)} alt="enemy-tower-right" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[0], BASE_TOWER_HP, battleSkin)} alt="enemy-tower-left" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-rose-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(aiCore, BASE_CORE_HP, battleSkin)} alt="enemy-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[2], BASE_TOWER_HP, battleSkin)} alt="enemy-tower-right" className="h-full w-full object-contain" /></div>
           </div>
           <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2">
-            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[0], BASE_TOWER_HP)} alt="player-tower-left" className="h-full w-full object-contain" /></div>
-            <div className="h-14 rounded-md bg-cyan-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(playerCore, BASE_CORE_HP)} alt="player-core" className="h-full w-full object-contain" /></div>
-            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[2], BASE_TOWER_HP)} alt="player-tower-right" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[0], BASE_TOWER_HP, battleSkin)} alt="player-tower-left" className="h-full w-full object-contain" /></div>
+            <div className="h-14 rounded-md bg-cyan-900/35 p-1 ring-2 ring-amber-300/70"><img src={castleAssetByHp(playerCore, BASE_CORE_HP, battleSkin)} alt="player-core" className="h-full w-full object-contain" /></div>
+            <div className="h-12 rounded-md bg-cyan-900/35 p-1"><img src={castleAssetByHp(playerTowers[2], BASE_TOWER_HP, battleSkin)} alt="player-tower-right" className="h-full w-full object-contain" /></div>
           </div>
 
           {[0, 1, 2].map((lane) => {
@@ -907,7 +911,7 @@ export default function BattlePage() {
                         exit={{ x: -20, opacity: 0 }}
                         transition={{ duration: f.kind === 'fire' ? 0.65 : 0.45 }}
                       >
-                        {f.kind === 'explosion' ? <img src="/assets/battle/fx/explosion.svg" alt="explosion" className="mr-1 inline h-4 w-4" /> : f.kind === 'fire' ? <img src="/assets/battle/fx/fire.svg" alt="fire" className="mr-1 inline h-4 w-4" /> : null}
+                        {f.kind === 'explosion' ? <img src={battleSkin?.battle.fxExplosion ?? '/assets/battle/fx/explosion.svg'} alt="explosion" className="mr-1 inline h-4 w-4" /> : f.kind === 'fire' ? <img src={battleSkin?.battle.fxFire ?? '/assets/battle/fx/fire.svg'} alt="fire" className="mr-1 inline h-4 w-4" /> : null}
                         {f.text}
                       </motion.div>
                     ))}

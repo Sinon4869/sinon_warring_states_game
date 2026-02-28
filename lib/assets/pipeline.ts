@@ -13,6 +13,19 @@ export type AssetManifest = {
   entries: AssetEntry[];
 };
 
+export type BattleSkin = {
+  id: string;
+  name: string;
+  battle: {
+    map: string;
+    castleNormal: string;
+    castleDamaged: string;
+    castleCritical: string;
+    fxExplosion: string;
+    fxFire: string;
+  };
+};
+
 const DEFAULT_MANIFEST: AssetManifest = {
   version: 'v1',
   entries: [
@@ -77,4 +90,14 @@ export async function preloadAssets(entries: AssetEntry[]) {
       });
     })
   );
+}
+
+export async function loadBattleSkin(id = 'default'): Promise<BattleSkin | null> {
+  try {
+    const res = await fetch(`/assets/skins/${id}.json`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as BattleSkin;
+  } catch {
+    return null;
+  }
 }

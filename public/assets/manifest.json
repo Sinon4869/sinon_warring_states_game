@@ -1,53 +1,15 @@
 {
-  "version": "v1",
+  "version": "v2",
   "entries": [
-    {
-      "id": "unit-infantry",
-      "kind": "unit",
-      "src": "/assets/units/infantry.svg",
-      "fallbackSrc": "/assets/units/fallback.svg",
-      "tier": "low"
-    },
-    {
-      "id": "unit-cavalry",
-      "kind": "unit",
-      "src": "/assets/units/cavalry.svg",
-      "fallbackSrc": "/assets/units/fallback.svg",
-      "tier": "mid"
-    },
-    {
-      "id": "unit-spear",
-      "kind": "unit",
-      "src": "/assets/units/spear.svg",
-      "fallbackSrc": "/assets/units/fallback.svg",
-      "tier": "mid"
-    },
-    {
-      "id": "unit-archer",
-      "kind": "unit",
-      "src": "/assets/units/archer.svg",
-      "fallbackSrc": "/assets/units/fallback.svg",
-      "tier": "mid"
-    },
-    {
-      "id": "fx-hit",
-      "kind": "fx",
-      "src": "/assets/fx/hit.webp",
-      "fallbackSrc": "/assets/fx/hit-fallback.svg",
-      "tier": "mid"
-    },
-    {
-      "id": "fx-core",
-      "kind": "fx",
-      "src": "/assets/fx/core.webp",
-      "fallbackSrc": "/assets/fx/core-fallback.svg",
-      "tier": "high"
-    },
-    {
-      "id": "audio-hit",
-      "kind": "audio",
-      "src": "/assets/audio/hit.mp3",
-      "tier": "low"
-    }
+    { "id": "unit-infantry", "kind": "unit", "src": "/assets/battle/units/swords.svg", "fallbackSrc": "/assets/units/fallback.svg", "tier": "low" },
+    { "id": "unit-cavalry", "kind": "unit", "src": "/assets/battle/units/horse.svg", "fallbackSrc": "/assets/units/fallback.svg", "tier": "mid" },
+    { "id": "unit-archer", "kind": "unit", "src": "/assets/battle/units/bow.svg", "fallbackSrc": "/assets/units/fallback.svg", "tier": "mid" },
+    { "id": "map-arena", "kind": "fx", "src": "/assets/battle/map/arena.svg", "tier": "low" },
+    { "id": "castle-normal", "kind": "fx", "src": "/assets/battle/buildings/castle.svg", "tier": "low" },
+    { "id": "castle-damaged", "kind": "fx", "src": "/assets/battle/buildings/castle_damaged.svg", "tier": "mid" },
+    { "id": "castle-critical", "kind": "fx", "src": "/assets/battle/buildings/castle_critical.svg", "tier": "mid" },
+    { "id": "fx-explosion", "kind": "fx", "src": "/assets/battle/fx/explosion.svg", "tier": "mid" },
+    { "id": "fx-fire", "kind": "fx", "src": "/assets/battle/fx/fire.svg", "tier": "low" },
+    { "id": "audio-hit", "kind": "audio", "src": "/assets/audio/hit.mp3", "tier": "low" }
   ]
 }
