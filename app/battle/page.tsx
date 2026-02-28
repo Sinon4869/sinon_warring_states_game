@@ -180,6 +180,7 @@ export default function BattlePage() {
   const [projectiles, setProjectiles] = useState<ProjectileFx[]>([]);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready'>('loading');
   const [assetTier, setAssetTier] = useState<'high' | 'mid' | 'low'>('mid');
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [settlement, setSettlement] = useState<{ winner: BattleWriteback['winner']; reason: string; playerScore: number; aiScore: number } | null>(null);
   const [shake, setShake] = useState(0);
   const [coreFlash, setCoreFlash] = useState<Side | null>(null);
@@ -216,6 +217,10 @@ export default function BattlePage() {
   const autoDeployRef = useRef(true);
   const autoModeRef = useRef<'selected' | 'all'>('selected');
   const battleSpeedRef = useRef(0.85);
+  const assetTierRef = useRef<'high' | 'mid' | 'low'>('mid');
+  const soundEnabledRef = useRef(true);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const countdownToneRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -295,6 +300,8 @@ export default function BattlePage() {
   useEffect(() => { autoDeployRef.current = autoDeploy; }, [autoDeploy]);
   useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
   useEffect(() => { battleSpeedRef.current = battleSpeed; }, [battleSpeed]);
+  useEffect(() => { assetTierRef.current = assetTier; }, [assetTier]);
+  useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,24 +323,51 @@ export default function BattlePage() {
     return () => clearTimeout(t);
   }, [shake]);
 
+  const playSfx = useCallback((kind: 'deploy' | 'hit' | 'crit' | 'tower' | 'countdown') => {
+    if (!soundEnabledRef.current || typeof window === 'undefined') return;
+    try {
+      const Ctx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+      const ctx = audioCtxRef.current;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      const tone = kind === 'crit' ? 920 : kind === 'tower' ? 240 : kind === 'countdown' ? 520 : kind === 'deploy' ? 380 : 640;
+      const dur = kind === 'countdown' ? 0.12 : 0.08;
+      osc.type = kind === 'tower' ? 'square' : 'triangle';
+      osc.frequency.setValueAtTime(tone, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.04, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + dur);
+    } catch {
+      // noop
+    }
+  }, []);
+
   const spawnFx = useCallback((lane: number, x: number, text: string, color: CombatFx['color']) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const cap = assetTierRef.current === 'low' ? 22 : assetTierRef.current === 'mid' ? 32 : 44;
     setEffects((prev) => {
-      const next = [...prev, { id, lane, x, text, color }].slice(-40);
+      const next = [...prev, { id, lane, x, text, color }].slice(-cap);
       fxPeakRef.current = Math.max(fxPeakRef.current, next.length);
       return next;
     });
     setTimeout(() => {
       setEffects((prev) => prev.filter((f) => f.id !== id));
-    }, 650);
+    }, assetTierRef.current === 'low' ? 520 : 650);
   }, []);
 
   const spawnProjectile = useCallback((lane: number, fromX: number, toX: number, color: ProjectileFx['color'], kind: ProjectileFx['kind']) => {
     const id = `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setProjectiles((prev) => [...prev, { id, lane, fromX, toX, color, kind }].slice(-30));
+    const cap = assetTierRef.current === 'low' ? 10 : assetTierRef.current === 'mid' ? 18 : 30;
+    setProjectiles((prev) => [...prev, { id, lane, fromX, toX, color, kind }].slice(-cap));
     setTimeout(() => {
       setProjectiles((prev) => prev.filter((p) => p.id !== id));
-    }, 280);
+    }, assetTierRef.current === 'low' ? 200 : 280);
   }, []);
 
   const deploy = useCallback((owner: Side, troop: Troop, lane: number) => {
@@ -368,12 +402,13 @@ export default function BattlePage() {
       deployStatsRef.current[troop.id] = (deployStatsRef.current[troop.id] ?? 0) + 1;
     }
     spawnFx(lane, owner === 'player' ? 20 : 80, troop.name, owner === 'player' ? 'cyan' : 'rose');
+    if (owner === 'player') playSfx('deploy');
     track({
       name: owner === 'player' ? 'battle_deploy' : 'battle_ai_deploy',
       at: Date.now(),
       props: { matchId: matchIdRef.current, troop: troop.id, lane }
     });
-  }, [running, spawnFx]);
+  }, [running, spawnFx, playSfx]);
 
   const choosePlayerAutoTroop = useCallback((lane: number) => {
     const order = laneOrdersRef.current[lane] ?? 'hold';
@@ -530,6 +565,7 @@ export default function BattlePage() {
               spawnFx(unit.lane, nearest.x, `${fxPrefix}-${hit.dmg}${hit.crit ? ' 暴击!' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
               if (hit.crit) {
                 spawnFx(unit.lane, nearest.x + (unit.owner === 'player' ? 1 : -1) * 1.4, 'CRIT', unit.owner === 'player' ? 'cyan' : 'rose');
+                playSfx('crit');
                 if (hit.fxTag === 'charge') {
                   nearest.x += unit.owner === 'player' ? 2.2 : -2.2;
                 }
@@ -543,6 +579,8 @@ export default function BattlePage() {
                     spawnFx(unit.lane, s.x, `溅射-${spDmg}`, unit.owner === 'player' ? 'cyan' : 'rose');
                   });
                 }
+              } else {
+                playSfx('hit');
               }
               unit.cooldown = order === 'burst' ? 0.95 : 0.8;
             }
@@ -558,6 +596,7 @@ export default function BattlePage() {
               targetTower[unit.lane] -= towerDamage;
               if (unit.owner === 'player') lanePressureRef.current[unit.lane] += towerDamage;
               spawnFx(unit.lane, towerX, `塔-${towerDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              playSfx(hit.crit ? 'crit' : 'tower');
               track({
                 name: 'battle_tower_hit',
                 at: Date.now(),
@@ -583,6 +622,7 @@ export default function BattlePage() {
               }
               setShake(hit.crit ? 14 : 10);
               spawnFx(unit.lane, coreX, `本阵-${coreDamage}${hit.crit ? ' 暴击' : ''}`, unit.owner === 'player' ? 'cyan' : 'rose');
+              playSfx(hit.crit ? 'crit' : 'tower');
               track({
                 name: 'battle_core_hit',
                 at: Date.now(),
@@ -641,13 +681,22 @@ export default function BattlePage() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [running, deploy, spawnFx, spawnProjectile, chooseAiAction, choosePlayerAutoTroop]);
+  }, [running, deploy, spawnFx, spawnProjectile, playSfx, chooseAiAction, choosePlayerAutoTroop]);
 
   const phaseLabel = useMemo(() => {
     if (!running) return '终局结算';
     if (timeLeft > 30) return '常规阶段';
     return '加时狂暴';
   }, [running, timeLeft]);
+
+  useEffect(() => {
+    if (!running) return;
+    const sec = Math.ceil(timeLeft);
+    if (sec > 10 || sec <= 0) return;
+    if (countdownToneRef.current === sec) return;
+    countdownToneRef.current = sec;
+    playSfx('countdown');
+  }, [running, timeLeft, playSfx]);
 
   const result = useMemo(() => {
     if (running || !settlement) return '';
@@ -733,7 +782,7 @@ export default function BattlePage() {
           <div className={`rounded-md border px-3 py-2 ${coreFlash === 'ai' ? 'border-cyan-400 bg-cyan-500/20' : 'border-zinc-700 bg-zinc-900/70'}`}>🏴 敌方本阵：{Math.round(aiCore)}</div>
           <div className="rounded-md border border-cyan-500/30 bg-zinc-900/70 px-3 py-2 font-semibold text-cyan-300">{result || '战斗进行中...'}</div>
         </div>
-        <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'}</p>
+        <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'} · 性能模式：{assetTier === 'low' ? '节能' : assetTier === 'mid' ? '平衡' : '高画质'}</p>
 
         <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
           <div className="mb-2 grid grid-cols-3 gap-2">
@@ -788,7 +837,7 @@ export default function BattlePage() {
                           rotate: getUnitAnimState(u) === 'attack' ? (u.owner === 'player' ? 6 : -6) : 0
                         }}
                         exit={{ scale: 0.1, opacity: 0 }}
-                        transition={{ duration: 0.2, repeat: getUnitAnimState(u) === 'move' ? Infinity : 0, ease: 'easeInOut' }}
+                        transition={{ duration: assetTier === 'low' ? 0.12 : 0.2, repeat: assetTier === 'low' ? 0 : getUnitAnimState(u) === 'move' ? Infinity : 0, ease: 'easeInOut' }}
                         title={`${u.owner === 'player' ? '我' : '敌'}-${u.troopId}:${Math.round(u.hp)} (${getUnitAnimState(u)})`}
                       >
                         <img
@@ -884,6 +933,12 @@ export default function BattlePage() {
               className={`chip-btn text-xs ${autoDeploy ? 'border-emerald-400/70 text-emerald-300' : ''}`}
             >
               自动投放：{autoDeploy ? '开' : '关'}
+            </button>
+            <button
+              onClick={() => setSoundEnabled((v) => !v)}
+              className={`chip-btn text-xs ${soundEnabled ? 'border-amber-400/70 text-amber-300' : ''}`}
+            >
+              音效：{soundEnabled ? '开' : '关'}
             </button>
           </div>
         </div>
