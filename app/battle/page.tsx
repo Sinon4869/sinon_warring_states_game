@@ -799,8 +799,23 @@ export default function BattlePage() {
           <div className={`rounded-md border px-3 py-2 font-semibold ${running ? 'border-cyan-500/30 bg-zinc-900/70 text-cyan-300' : settlement?.winner === 'player' ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200 animate-pulse' : settlement?.winner === 'ai' ? 'border-rose-400/70 bg-rose-500/20 text-rose-200 animate-pulse' : 'border-zinc-500/60 bg-zinc-800/70 text-zinc-200'}`}>{result || '战斗进行中...'}</div>
         </div>
         <p className="text-[11px] text-zinc-500">资源管线：{assetStatus === 'ready' ? `就绪（${assetTier}）` : '加载中...'} · 性能模式：{assetTier === 'low' ? '节能' : assetTier === 'mid' ? '平衡' : '高画质'}</p>
+        <p className="text-[11px] text-cyan-300/80">战场直点投放：点下半场可部署区（上半场仅选路）</p>
 
-        <div className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 shadow-[0_0_40px_rgba(34,211,238,0.12)]" style={{ backgroundImage: "url('/assets/battle/map/arena.svg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div
+          className="relative h-[560px] overflow-hidden rounded-2xl border border-zinc-700/80 shadow-[0_0_40px_rgba(34,211,238,0.12)]"
+          style={{ backgroundImage: "url('/assets/battle/map/arena.svg')", backgroundSize: 'cover', backgroundPosition: 'center' }}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+            const rx = (e.clientX - rect.left) / rect.width;
+            const ry = (e.clientY - rect.top) / rect.height;
+            const lane = Math.max(0, Math.min(2, Math.floor(rx * 3)));
+            setSelectedLane(lane);
+            if (ry > 0.56) {
+              const troop = TROOPS.find((t) => t.id === selectedTroop);
+              if (troop) deploy('player', troop, lane);
+            }
+          }}
+        >
           <div className="absolute inset-0 opacity-25" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
           <div className="absolute inset-x-0 top-[49%] h-[48px] bg-sky-700/70" />
           <div className="absolute top-[47.5%] left-[15%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
@@ -828,7 +843,8 @@ export default function BattlePage() {
               <button
                 key={lane}
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setSelectedLane(lane);
                   if (window.innerWidth < 768) {
                     const troop = TROOPS.find((t) => t.id === selectedTroop);
