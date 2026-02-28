@@ -820,11 +820,11 @@ export default function BattlePage() {
             }
           }}
         >
-          <div className="absolute inset-0 opacity-25" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
-          <div className="absolute inset-x-0 top-[49%] h-[48px] bg-sky-700/70" />
-          <div className="absolute top-[47.5%] left-[15%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
-          <div className="absolute top-[47.5%] left-[44%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
-          <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/85 shadow-[0_0_16px_rgba(245,158,11,0.4)]" />
+          <div className="absolute inset-0 opacity-12" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+          <div className="absolute inset-x-0 top-[49%] h-[48px] bg-sky-700/55" />
+          <div className="absolute top-[47.5%] left-[15%] h-[52px] w-[12%] rounded bg-amber-600/70" />
+          <div className="absolute top-[47.5%] left-[44%] h-[52px] w-[12%] rounded bg-amber-600/70" />
+          <div className="absolute top-[47.5%] left-[73%] h-[52px] w-[12%] rounded bg-amber-600/70" />
 
           <div className="absolute inset-x-3 top-3 grid grid-cols-3 gap-2">
             <div className="h-12 rounded-md bg-rose-900/35 p-1"><img src={castleAssetByHp(aiTowers[0], BASE_TOWER_HP, battleSkin)} alt="enemy-tower-left" className="h-full w-full object-contain" /></div>
@@ -855,17 +855,14 @@ export default function BattlePage() {
                     if (troop) deploy('player', troop, lane);
                   }
                 }}
-                className={`absolute top-[74px] h-[470px] w-[31%] overflow-hidden rounded-xl border text-left ${selectedLane === lane ? 'border-cyan-400/90 shadow-[0_0_22px_rgba(34,211,238,0.25)]' : 'border-zinc-700/90 bg-zinc-900/20'}`}
+                className={`absolute top-[74px] h-[470px] w-[31%] overflow-hidden rounded-xl border text-left ${selectedLane === lane ? 'border-cyan-400/70 bg-cyan-500/5' : 'border-zinc-700/50 bg-zinc-900/10'}`}
                 style={{ left: `${laneLeft}%` }}
               >
                 <div className="absolute inset-y-0 left-0 w-1 bg-zinc-800/70">
                   <div className="absolute bottom-0 w-full bg-cyan-400/80" style={{ height: `${playerPct}%` }} />
                 </div>
-                <div className="absolute left-2 bottom-1 text-[10px] text-zinc-200">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
-                <div className="absolute left-2 top-1 text-[10px] text-zinc-200">敌塔 {Math.round(aiTowers[lane])}</div>
-                <div className={`absolute right-2 bottom-6 h-4 w-4 rounded ${playerTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : playerTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-cyan-400/80'}`} />
-                <div className={`absolute right-2 top-6 h-4 w-4 rounded ${aiTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : aiTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-rose-400/80'}`} />
-                <div className="absolute inset-x-0 top-1/2 h-px bg-cyan-400/30" />
+                <div className="absolute left-2 top-1 text-[10px] text-zinc-300/85">第{lane + 1}路</div>
+                <div className="absolute inset-x-0 top-1/2 h-px bg-cyan-400/18" />
 
                 <AnimatePresence>
                   {units
@@ -938,8 +935,7 @@ export default function BattlePage() {
             );
           })}
         </div>
-        <p className="text-xs text-zinc-400">AI 人格：{aiPersona}</p>
-        <div className="space-y-1 text-xs text-zinc-400">{aiLogs.map((l, i) => <p key={`${l}-${i}`}>- {l}</p>)}</div>
+        <p className="text-xs text-zinc-400">AI 人格：{aiPersona} · 最近决策：{aiLogs[0] ?? '等待中'}</p>
       </section>
 
       {!running && settlement && (
