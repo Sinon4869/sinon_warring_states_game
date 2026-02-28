@@ -677,7 +677,13 @@ export default function BattlePage() {
       turnsUsed: Math.max(0, timeLimitRef.current - Math.ceil(timeLeft))
     };
     localStorage.setItem('sws-battle-report', JSON.stringify(report));
-    localStorage.setItem('sws-battle-settlement', JSON.stringify({ ...report, reason: outcome.reason, playerScore, aiScore, mvpTroop, keyLane, nextHint }));
+    const highlights = [
+      `${outcome.winner === 'player' ? '胜势确立' : outcome.winner === 'ai' ? '防线失守' : '鏖战至终局'}：${outcome.reason}`,
+      `关键线路：第${keyLane + 1}路压力最高`,
+      `MVP兵种：${troopById(mvpTroop).name}`,
+      `建议：${nextHint === 'expand' ? '扩张追击' : nextHint === 'fortify' ? '加固防线' : '休整补给'}`
+    ];
+    localStorage.setItem('sws-battle-settlement', JSON.stringify({ ...report, reason: outcome.reason, playerScore, aiScore, mvpTroop, keyLane, nextHint, highlights }));
     const avgTickMs = tickCountRef.current > 0 ? Math.round(tickMsSumRef.current / tickCountRef.current) : 100;
     track({
       name: 'battle_perf_summary',
