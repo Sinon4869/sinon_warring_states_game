@@ -823,7 +823,7 @@ export default function BattlePage() {
             const aiPower = units.filter((u) => u.owner === 'ai' && u.lane === lane).reduce((a, b) => a + b.hp, 0);
             const total = Math.max(1, playerPower + aiPower);
             const playerPct = (playerPower / total) * 100;
-            const laneTop = 74 + lane * 143;
+            const laneLeft = 14 + lane * 33.3;
             return (
               <button
                 key={lane}
@@ -835,17 +835,17 @@ export default function BattlePage() {
                     if (troop) deploy('player', troop, lane);
                   }
                 }}
-                className={`absolute left-3 right-3 h-[132px] overflow-hidden rounded-xl border text-left ${selectedLane === lane ? 'border-cyan-400/90 shadow-[0_0_22px_rgba(34,211,238,0.25)]' : 'border-zinc-700/90 bg-zinc-900/20'}`}
-                style={{ top: `${laneTop}px` }}
+                className={`absolute top-[74px] h-[470px] w-[31%] overflow-hidden rounded-xl border text-left ${selectedLane === lane ? 'border-cyan-400/90 shadow-[0_0_22px_rgba(34,211,238,0.25)]' : 'border-zinc-700/90 bg-zinc-900/20'}`}
+                style={{ left: `${laneLeft}%` }}
               >
-                <div className="absolute inset-x-0 top-0 h-1 bg-zinc-800/70">
-                  <div className="h-full bg-cyan-400/80" style={{ width: `${playerPct}%` }} />
+                <div className="absolute inset-y-0 left-0 w-1 bg-zinc-800/70">
+                  <div className="absolute bottom-0 w-full bg-cyan-400/80" style={{ height: `${playerPct}%` }} />
                 </div>
-                <div className="absolute left-2 top-1 text-[10px] text-zinc-200">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
-                <div className="absolute right-2 top-1 text-[10px] text-zinc-200">敌塔 {Math.round(aiTowers[lane])}</div>
-                <div className={`absolute left-2 top-6 h-4 w-4 rounded ${playerTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : playerTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-cyan-400/80'}`} />
+                <div className="absolute left-2 bottom-1 text-[10px] text-zinc-200">第{lane + 1}路 · 我塔 {Math.round(playerTowers[lane])}</div>
+                <div className="absolute left-2 top-1 text-[10px] text-zinc-200">敌塔 {Math.round(aiTowers[lane])}</div>
+                <div className={`absolute right-2 bottom-6 h-4 w-4 rounded ${playerTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : playerTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-cyan-400/80'}`} />
                 <div className={`absolute right-2 top-6 h-4 w-4 rounded ${aiTowers[lane] < BASE_TOWER_HP * 0.35 ? 'bg-orange-500/90 animate-pulse' : aiTowers[lane] < BASE_TOWER_HP * 0.65 ? 'bg-amber-500/80' : 'bg-rose-400/80'}`} />
-                <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-400/30" />
+                <div className="absolute inset-x-0 top-1/2 h-px bg-cyan-400/30" />
 
                 <AnimatePresence>
                   {units
@@ -853,8 +853,8 @@ export default function BattlePage() {
                     .map((u) => (
                       <motion.div
                         key={u.uid}
-                        className={`absolute ${u.owner === 'player' ? 'top-[62%]' : 'top-[28%]'} w-8`}
-                        style={{ left: `calc(${u.x}% - 16px)`, zIndex: u.owner === 'player' ? 30 : 20 }}
+                        className="absolute w-8"
+                        style={{ left: 'calc(50% - 16px)', top: `calc(${u.x}% - 16px)`, zIndex: u.owner === 'player' ? 30 : 20 }}
                         initial={{ scale: 0.6, opacity: 0 }}
                         animate={{
                           scale: u.cooldown > 0 ? 1.16 : 1,
@@ -884,11 +884,11 @@ export default function BattlePage() {
                     .map((f) => (
                       <motion.div
                         key={f.id}
-                        className={`absolute top-9 text-[10px] font-semibold ${f.color === 'cyan' ? 'text-cyan-300' : 'text-rose-300'}`}
-                        style={{ left: `calc(${f.x}% - 10px)` }}
-                        initial={{ y: 8, opacity: 0, scale: 0.8 }}
-                        animate={{ y: -12, opacity: 1, scale: f.kind === 'explosion' ? [1, 1.35, 1] : 1 }}
-                        exit={{ y: -20, opacity: 0 }}
+                        className={`absolute left-[50%] text-[10px] font-semibold ${f.color === 'cyan' ? 'text-cyan-300' : 'text-rose-300'}`}
+                        style={{ top: `calc(${f.x}% - 10px)`, transform: 'translateX(-50%)' }}
+                        initial={{ x: 8, opacity: 0, scale: 0.8 }}
+                        animate={{ x: -12, opacity: 1, scale: f.kind === 'explosion' ? [1, 1.35, 1] : 1 }}
+                        exit={{ x: -20, opacity: 0 }}
                         transition={{ duration: f.kind === 'fire' ? 0.65 : 0.45 }}
                       >
                         {f.kind === 'explosion' ? <img src="/assets/battle/fx/explosion.svg" alt="explosion" className="mr-1 inline h-4 w-4" /> : f.kind === 'fire' ? <img src="/assets/battle/fx/fire.svg" alt="fire" className="mr-1 inline h-4 w-4" /> : null}
@@ -902,10 +902,10 @@ export default function BattlePage() {
                     .map((p) => (
                       <motion.div
                         key={p.id}
-                        className="absolute top-[52%]"
-                        style={{ left: `calc(${p.fromX}% - 8px)` }}
-                        initial={{ x: 0, opacity: 0.2, scale: 0.8 }}
-                        animate={{ x: `calc(${p.toX - p.fromX}%)`, opacity: 1, scale: 1 }}
+                        className="absolute left-[50%]"
+                        style={{ top: `calc(${p.fromX}% - 8px)` }}
+                        initial={{ y: 0, opacity: 0.2, scale: 0.8, x: '-50%' }}
+                        animate={{ y: `calc(${p.toX - p.fromX}%)`, opacity: 1, scale: 1, x: '-50%' }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.22, ease: 'linear' }}
                       >
